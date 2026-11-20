@@ -383,6 +383,42 @@ export const SKILL_TAXONOMY: SkillTaxonomyItem[] = [
     projectIdea: 'Build an offline-capable cross-platform mobile companion app with push notifications.',
     domainTags: ['Mobile Engineering'],
   },
+  {
+    canonical: 'System Design',
+    aliases: ['distributed systems', 'microservices', 'software architecture', 'high availability', 'scalability'],
+    category: 'TECHNICAL',
+    difficulty: 'Advanced',
+    estimatedWeeks: 5,
+    projectIdea: 'Author architecture decision records and load-test a horizontally partitioned API with caching and circuit breakers.',
+    domainTags: ['Backend Engineering', 'Full-Stack Engineering', 'Cloud & DevOps'],
+  },
+  {
+    canonical: 'Rust',
+    aliases: ['rustlang', 'cargo', 'tokio'],
+    category: 'TECHNICAL',
+    difficulty: 'Advanced',
+    estimatedWeeks: 6,
+    projectIdea: 'Build a memory-safe, async HTTP proxy or CLI log indexer in Rust using Tokio and Serde.',
+    domainTags: ['Backend Engineering', 'Cloud & DevOps'],
+  },
+  {
+    canonical: 'Kafka',
+    aliases: ['apache kafka', 'rabbitmq', 'event-driven architecture', 'message queues'],
+    category: 'TECHNICAL',
+    difficulty: 'Advanced',
+    estimatedWeeks: 4,
+    projectIdea: 'Implement an idempotent event-streaming pipeline with dead-letter queues and consumer lag monitoring.',
+    domainTags: ['Backend Engineering', 'Data Engineering'],
+  },
+  {
+    canonical: 'Vector Databases',
+    aliases: ['pgvector', 'pinecone', 'weaviate', 'qdrant', 'milvus', 'chromadb'],
+    category: 'TECHNICAL',
+    difficulty: 'Moderate',
+    estimatedWeeks: 3,
+    projectIdea: 'Index 50k technical documents with pgvector HNSW indexes and benchmark hybrid BM25 + cosine recall.',
+    domainTags: ['AI & Machine Learning', 'Data Engineering'],
+  },
   // Soft Skills
   {
     canonical: 'Communication',
@@ -577,3 +613,235 @@ export function extractSkillsFromText(text: string): {
     languages: Array.from(languages),
   };
 }
+
+/**
+ * Directed weighted skill adjacency map:
+ * Maps a target required skill -> candidate skills that demonstrate strong transferable or superset knowledge.
+ */
+const SKILL_TRANSFERABILITY_MAP: Record<string, Array<{ via: string; credit: number }>> = {
+  JavaScript: [
+    { via: 'TypeScript', credit: 0.9 },
+    { via: 'React', credit: 0.8 },
+    { via: 'Next.js', credit: 0.8 },
+    { via: 'Node.js', credit: 0.8 },
+    { via: 'Vue.js', credit: 0.75 },
+    { via: 'Angular', credit: 0.75 },
+  ],
+  TypeScript: [
+    { via: 'Next.js', credit: 0.7 },
+    { via: 'Angular', credit: 0.75 },
+    { via: 'JavaScript', credit: 0.55 },
+  ],
+  React: [
+    { via: 'Next.js', credit: 0.85 },
+    { via: 'React Native', credit: 0.75 },
+    { via: 'Vue.js', credit: 0.45 },
+    { via: 'Angular', credit: 0.45 },
+  ],
+  'Next.js': [
+    { via: 'React', credit: 0.65 },
+  ],
+  HTML5: [
+    { via: 'React', credit: 0.75 },
+    { via: 'Next.js', credit: 0.75 },
+    { via: 'Vue.js', credit: 0.75 },
+    { via: 'Tailwind CSS', credit: 0.7 },
+  ],
+  CSS3: [
+    { via: 'Tailwind CSS', credit: 0.8 },
+    { via: 'UI/UX Design', credit: 0.55 },
+  ],
+  'Tailwind CSS': [
+    { via: 'CSS3', credit: 0.6 },
+  ],
+  SQL: [
+    { via: 'PostgreSQL', credit: 0.9 },
+    { via: 'Prisma', credit: 0.65 },
+    { via: 'Data Analysis', credit: 0.55 },
+    { via: 'Apache Spark', credit: 0.6 },
+  ],
+  PostgreSQL: [
+    { via: 'SQL', credit: 0.65 },
+    { via: 'Prisma', credit: 0.6 },
+    { via: 'Vector Databases', credit: 0.55 },
+  ],
+  'REST APIs': [
+    { via: 'Node.js', credit: 0.75 },
+    { via: 'FastAPI', credit: 0.8 },
+    { via: 'GraphQL', credit: 0.65 },
+    { via: 'Java', credit: 0.6 },
+    { via: 'C#', credit: 0.6 },
+    { via: 'Go', credit: 0.65 },
+  ],
+  Python: [
+    { via: 'FastAPI', credit: 0.85 },
+    { via: 'Machine Learning', credit: 0.8 },
+    { via: 'Deep Learning', credit: 0.8 },
+    { via: 'NLP', credit: 0.75 },
+    { via: 'Data Analysis', credit: 0.7 },
+  ],
+  'Machine Learning': [
+    { via: 'Deep Learning', credit: 0.85 },
+    { via: 'NLP', credit: 0.75 },
+    { via: 'Data Analysis', credit: 0.5 },
+  ],
+  NLP: [
+    { via: 'LLM Integration', credit: 0.75 },
+    { via: 'Deep Learning', credit: 0.65 },
+    { via: 'Vector Databases', credit: 0.6 },
+  ],
+  'LLM Integration': [
+    { via: 'NLP', credit: 0.7 },
+    { via: 'Vector Databases', credit: 0.7 },
+    { via: 'Deep Learning', credit: 0.55 },
+  ],
+  Docker: [
+    { via: 'Kubernetes', credit: 0.85 },
+    { via: 'CI/CD', credit: 0.5 },
+  ],
+  Kubernetes: [
+    { via: 'Docker', credit: 0.5 },
+    { via: 'Terraform', credit: 0.5 },
+  ],
+  AWS: [
+    { via: 'GCP', credit: 0.6 },
+    { via: 'Azure', credit: 0.6 },
+    { via: 'Terraform', credit: 0.55 },
+  ],
+  GCP: [
+    { via: 'AWS', credit: 0.6 },
+    { via: 'Azure', credit: 0.6 },
+  ],
+  Azure: [
+    { via: 'AWS', credit: 0.6 },
+    { via: 'GCP', credit: 0.6 },
+  ],
+};
+
+export interface SkillTransferabilityResult {
+  requiredSkill: string;
+  matchType: 'EXACT' | 'ADJACENT' | 'NONE';
+  credit: number;
+  matchedVia?: string;
+}
+
+/**
+ * Evaluates whether a candidate satisfies a target skill either directly (1.0)
+ * or via documented ecosystem adjacency / superset skills (0.45..0.90).
+ */
+export function computeSkillTransferability(
+  requiredSkillRaw: string,
+  candidateSkillsCanonicalLower: Set<string>
+): SkillTransferabilityResult {
+  const canonicalReq = normalizeSkillName(requiredSkillRaw).canonical;
+  if (candidateSkillsCanonicalLower.has(canonicalReq.toLowerCase())) {
+    return {
+      requiredSkill: canonicalReq,
+      matchType: 'EXACT',
+      credit: 1,
+      matchedVia: canonicalReq,
+    };
+  }
+
+  const adjacents = SKILL_TRANSFERABILITY_MAP[canonicalReq] || [];
+  let best: { via: string; credit: number } | null = null;
+  for (const adj of adjacents) {
+    if (candidateSkillsCanonicalLower.has(adj.via.toLowerCase())) {
+      if (!best || adj.credit > best.credit) {
+        best = adj;
+      }
+    }
+  }
+
+  if (best) {
+    return {
+      requiredSkill: canonicalReq,
+      matchType: 'ADJACENT',
+      credit: best.credit,
+      matchedVia: best.via,
+    };
+  }
+
+  // Domain-tag fallback for closely related technical tools in the same narrow specialty
+  const reqTax = aliasLookup.get(canonicalReq.toLowerCase());
+  if (reqTax && reqTax.category !== 'LANGUAGE' && reqTax.category !== 'SOFT') {
+    for (const candLower of Array.from(candidateSkillsCanonicalLower)) {
+      const candTax = aliasLookup.get(candLower);
+      if (
+        candTax &&
+        candTax.category === reqTax.category &&
+        candTax.domainTags.length > 0 &&
+        reqTax.domainTags.every((t) => candTax.domainTags.includes(t))
+      ) {
+        return {
+          requiredSkill: canonicalReq,
+          matchType: 'ADJACENT',
+          credit: 0.35,
+          matchedVia: candTax.canonical,
+        };
+      }
+    }
+  }
+
+  return {
+    requiredSkill: canonicalReq,
+    matchType: 'NONE',
+    credit: 0,
+  };
+}
+
+/**
+ * Prerequisite topological weights (lower rank = foundational prerequisite learned first).
+ */
+const SKILL_FOUNDATION_RANK: Record<string, number> = {
+  Git: 1,
+  HTML5: 1,
+  CSS3: 1,
+  JavaScript: 1,
+  Python: 1,
+  SQL: 1,
+  Linux: 1,
+  Communication: 1,
+  TypeScript: 2,
+  'Tailwind CSS': 2,
+  'REST APIs': 2,
+  PostgreSQL: 2,
+  'Node.js': 2,
+  FastAPI: 2,
+  'Data Analysis': 2,
+  React: 3,
+  'Vue.js': 3,
+  Angular: 3,
+  Prisma: 3,
+  GraphQL: 3,
+  Docker: 3,
+  'Automated Testing': 3,
+  'Machine Learning': 3,
+  'Next.js': 4,
+  'CI/CD': 4,
+  Redis: 4,
+  AWS: 4,
+  GCP: 4,
+  Azure: 4,
+  NLP: 4,
+  'Vector Databases': 4,
+  'System Design': 5,
+  Terraform: 5,
+  Kubernetes: 5,
+  'Deep Learning': 5,
+  'LLM Integration': 5,
+  'Apache Spark': 5,
+  Cybersecurity: 5,
+};
+
+export function orderSkillsByPrerequisites(skills: string[]): string[] {
+  return [...skills].sort((a, b) => {
+    const canonA = normalizeSkillName(a).canonical;
+    const canonB = normalizeSkillName(b).canonical;
+    const rankA = SKILL_FOUNDATION_RANK[canonA] ?? 3;
+    const rankB = SKILL_FOUNDATION_RANK[canonB] ?? 3;
+    if (rankA !== rankB) return rankA - rankB;
+    return canonA.localeCompare(canonB);
+  });
+}
+

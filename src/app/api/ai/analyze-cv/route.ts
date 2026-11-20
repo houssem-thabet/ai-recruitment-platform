@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { analyzeCVText } from '@/lib/ai/engine';
+import { getLastLLMDiagnostics } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
@@ -68,8 +69,10 @@ export async function POST(req: NextRequest) {
         feature: 'CV_ANALYZER',
         mode: run.result.aiMode,
         modelName: run.result.modelName,
+        status: run.fallbackUsed ? 'FALLBACK' : 'SUCCESS',
         latencyMs: run.latencyMs,
         tokensEstimated: run.tokensEstimated,
+        errorMessage: run.fallbackUsed ? getLastLLMDiagnostics()?.errorMessage : null,
       });
 
       return NextResponse.json({ analysis: saved });
@@ -85,8 +88,10 @@ export async function POST(req: NextRequest) {
         feature: 'CV_ANALYZER',
         mode: run.result.aiMode,
         modelName: run.result.modelName,
+        status: run.fallbackUsed ? 'FALLBACK' : 'SUCCESS',
         latencyMs: run.latencyMs,
         tokensEstimated: run.tokensEstimated,
+        errorMessage: run.fallbackUsed ? getLastLLMDiagnostics()?.errorMessage : null,
       });
       return NextResponse.json({ analysis: run.result });
     }

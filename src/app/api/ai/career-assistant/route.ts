@@ -5,7 +5,11 @@ import {
   runCareerAssistantAI,
   computeCandidateJobMatch,
 } from '@/lib/ai/engine';
-import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
+import {
+  getActiveAIModelInfo,
+  getLastLLMDiagnostics,
+  type ChatTurnMessage,
+} from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
 import { sanitizeText } from '@/lib/utils';
 
@@ -97,6 +101,18 @@ export async function POST(req: NextRequest) {
       topMatchingJobs.sort((a, b) => b.score - a.score);
     }
 
+    const priorRows = await prisma.careerChatMessage.findMany({
+      where: { userId: auth.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    });
+    const history: ChatTurnMessage[] = priorRows
+      .reverse()
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
     await prisma.careerChatMessage.create({
       data: {
         userId: auth.user.id,
@@ -105,20 +121,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const assistantRun = await runCareerAssistantAI(cleanMsg, {
-      firstName: auth.user.firstName,
-      lastName: auth.user.lastName,
-      headline: profile?.headline,
-      bio: profile?.bio,
-      yearsOfExperience: profile?.yearsOfExperience ?? 0,
-      location: profile?.location,
-      skills: profile?.skills.map((s) => s.skill.name) || [],
-      cvCompleteness: profile?.cvAnalyses[0]?.completenessScore ?? null,
-      cvMissingInfo: profile?.cvAnalyses[0]?.missingInfo || [],
-      cvSuggestions: profile?.cvAnalyses[0]?.suggestions || [],
-      applicationsCount: profile?._count.applications ?? 0,
-      topMatchingJobs: topMatchingJobs.slice(0, 4),
-    });
+    const assistantRun = await runCareerAssistantAI(
+      cleanMsg,
+      {
+        firstName: auth.user.firstName,
+        lastName: auth.user.firstName ? auth.user.lastName : '',
+        headline: profile?.headline,
+        bio: profile?.bio,
+        yearsOfExperience: profile?.yearsOfExperience ?? 0,
+        location: profile?.location,
+        skills: profile?.skills.map((s) => s.skill.name) || [],
+        cvCompleteness: profile?.cvAnalyses[0]?.completenessScore ?? null,
+        cvMissingInfo: profile?.cvAnalyses[0]?.missingInfo || [],
+        cvSuggestions: profile?.cvAnalyses[0]?.suggestions || [],
+        applicationsCount: profile?._count.applications ?? 0,
+        topMatchingJobs: topMatchingJobs.slice(0, 4),
+      },
+      history
+    );
 
     const savedAssistantMsg = await prisma.careerChatMessage.create({
       data: {
@@ -128,6 +148,7 @@ export async function POST(req: NextRequest) {
         metadata: {
           suggestedActions: assistantRun.suggestedActions,
           aiMode: assistantRun.aiMode,
+          intent: assistantRun.intent,
         },
       },
     });
@@ -137,8 +158,12 @@ export async function POST(req: NextRequest) {
       feature: 'CAREER_ASSISTANT',
       mode: assistantRun.aiMode,
       modelName: getActiveAIModelInfo().modelName,
+      status: assistantRun.fallbackUsed ? 'FALLBACK' : 'SUCCESS',
       latencyMs: assistantRun.latencyMs,
       tokensEstimated: assistantRun.tokensEstimated,
+      errorMessage: assistantRun.fallbackUsed
+        ? getLastLLMDiagnostics()?.errorMessage
+        : null,
     });
 
     return NextResponse.json({

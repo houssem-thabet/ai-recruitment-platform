@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import {
-  computeSkillGapAnalysis,
+  runSkillGapAnalysisAI,
   CAREER_PATH_BLUEPRINTS,
 } from '@/lib/ai/engine';
-import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
+import { getActiveAIModelInfo, getLastLLMDiagnostics } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       niceToHaveSkills = bp.niceToHaveSkills;
     }
 
-    const analysis = computeSkillGapAnalysis({
+    const run = await runSkillGapAnalysisAI({
       candidateSkills,
       targetTitle,
       targetType,
@@ -97,13 +97,15 @@ export async function POST(req: NextRequest) {
     await logAIUsage({
       userId: auth.user.id,
       feature: 'SKILL_GAP',
-      mode: analysis.aiMode,
+      mode: run.analysis.aiMode,
       modelName: getActiveAIModelInfo().modelName,
-      latencyMs: Date.now() - started,
-      tokensEstimated: 150,
+      status: run.fallbackUsed ? 'FALLBACK' : 'SUCCESS',
+      latencyMs: run.latencyMs,
+      tokensEstimated: run.tokensEstimated,
+      errorMessage: run.fallbackUsed ? getLastLLMDiagnostics()?.errorMessage : null,
     });
 
-    return NextResponse.json({ analysis });
+    return NextResponse.json({ analysis: run.analysis });
   } catch (err) {
     console.error('[POST /api/ai/skill-gap]', err);
     return NextResponse.json({ error: 'Skill gap analysis failed.' }, { status: 500 });
