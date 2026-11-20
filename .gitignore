@@ -1,0 +1,38 @@
+# Dependencies & build artifacts
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment & secrets (NEVER commit .env or credentials)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private uploaded CV vault (keep folder structure only)
+storage/cvs/*
+!storage/cvs/.gitkeep
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Sandbox / Linux user home dotfiles & caches
+.arena/
+.cache/
+.config/
+.local/
+.npm/
+.ssh/
+.viminfo
+.bash*
+.profile
+.sudo_as_admin_successful
+.git-credentials
+.netrc

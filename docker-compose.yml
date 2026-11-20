@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: talentai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: talentai
+    ports:
+      - "5432:5432"
+    volumes:
+      - talentai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d talentai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: talentai-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/talentai?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-in-production-min-32-chars}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      CV_STORAGE_DIR: /app/storage/cvs
+    ports:
+      - "3000:3000"
+    volumes:
+      - talentai_cvs:/app/storage/cvs
+
+volumes:
+  talentai_pgdata:
+  talentai_cvs:
