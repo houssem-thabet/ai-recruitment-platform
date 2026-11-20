@@ -6,7 +6,8 @@ TalentAI includes an automated 3-tier **Vitest** test suite (`npm test`) that va
 
 | Test Suite | File | Scope | Tests | Status |
 |---|---|---|---|---|
-| **Unit Suite** | `tests/unit/ai-and-parsers.test.ts` | Skill normalization, TF-IDF cosine similarity, protected-term exclusion, PII redaction, magic-byte CV validation, real PDF & DOCX extraction, all 8 AI engine functions, configurable match weights | 6 | **PASS** |
+| **Core Unit Suite** | `tests/unit/ai-and-parsers.test.ts` | Skill normalization, TF-IDF cosine similarity, protected-term exclusion, PII redaction, magic-byte CV validation, real PDF & DOCX extraction, all 8 AI engine functions, configurable match weights | 6 | **PASS** |
+| **Deep AI Engine Suite** | `tests/unit/ai-engine-deep.test.ts` | PDF ligature/hyphen/stream fallback & `CVParseError` codes, merged employment interval math, ecosystem skill transferability, demographic bias invariance proof, live OpenAI/Anthropic/Gemini LLM & dense Embeddings integrations, anti-hallucination grounding, HTTP 429 retry, timeout/HTTP 500/schema fallback, prerequisite skill-gap sequencing, 8-intent multi-turn career assistant | 8 | **PASS** |
 | **Integration Suite** | `tests/integration/security-and-rbac.test.ts` | Public ADMIN registration block, XSS & null-byte sanitization, HS256 JWT signing/tamper rejection, PostgreSQL seeded entity counts & bcrypt password verification | 4 | **PASS** |
 | **End-to-End Suite** | `tests/e2e/workflows.e2e.test.ts` | Full HTTP lifecycle across all 20 platform workflows (Auth, RBAC, Profile, PDF/DOCX CV upload, privacy checks, AI JD approval gate, search/filter, apply, duplicate block, matching override, Kanban status + notifications, interview conflict check, consent-gated evaluation, chatbot, skill gap, analytics CSV, admin suspension/moderation, public routes) | 6 (covering all 20 workflows) | **PASS** |
 
