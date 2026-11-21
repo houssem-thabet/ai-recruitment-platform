@@ -24,12 +24,16 @@ export default function AdminCompaniesPage() {
   }, []);
 
   const toggleVerify = async (companyId: string, verified: boolean) => {
-    await apiFetch('/api/admin/companies', {
-      method: 'PUT',
-      body: JSON.stringify({ companyId, verified }),
-    });
-    toast.success('Company verification status updated.');
-    load();
+    try {
+      await apiFetch('/api/admin/companies', {
+        method: 'PUT',
+        body: JSON.stringify({ companyId, verified }),
+      });
+      toast.success('Company verification status updated.');
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (

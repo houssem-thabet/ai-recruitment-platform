@@ -18,6 +18,7 @@ import {
   Card,
   Badge,
   StatusBadge,
+  Modal,
   PageLoader,
   EmptyState,
 } from '@/components/ui/primitives';
@@ -29,6 +30,7 @@ export default function RecruiterJobsPage() {
   const toast = useToast();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
@@ -63,6 +65,7 @@ export default function RecruiterJobsPage() {
     try {
       await apiFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
       toast.info('Job advertisement deleted.');
+      setDeleteTarget(null);
       await loadJobs();
     } catch (err: any) {
       toast.error(err.message);
@@ -157,37 +160,43 @@ export default function RecruiterJobsPage() {
                       <Edit3 className="w-3.5 h-3.5" /> Edit
                     </Button>
                   </Link>
-                  {job.status !== 'PUBLISHED' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateJobStatus(job.id, 'PUBLISHED')}
-                    >
-                      <PlayCircle className="w-3.5 h-3.5 text-emerald-500" /> Publish
-                    </Button>
-                  )}
-                  {job.status === 'PUBLISHED' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateJobStatus(job.id, 'PAUSED')}
-                    >
-                      <PauseCircle className="w-3.5 h-3.5 text-amber-500" /> Pause
-                    </Button>
-                  )}
-                  {job.status !== 'CLOSED' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateJobStatus(job.id, 'CLOSED')}
-                    >
-                      <XCircle className="w-3.5 h-3.5 text-slate-500" /> Close
-                    </Button>
+                  {job.status === 'MODERATION_HOLD' ? (
+                    <Badge variant="danger">Held by Admin Moderation</Badge>
+                  ) : (
+                    <>
+                      {job.status !== 'PUBLISHED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateJobStatus(job.id, 'PUBLISHED')}
+                        >
+                          <PlayCircle className="w-3.5 h-3.5 text-emerald-500" /> Publish
+                        </Button>
+                      )}
+                      {job.status === 'PUBLISHED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateJobStatus(job.id, 'PAUSED')}
+                        >
+                          <PauseCircle className="w-3.5 h-3.5 text-amber-500" /> Pause
+                        </Button>
+                      )}
+                      {job.status !== 'CLOSED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateJobStatus(job.id, 'CLOSED')}
+                        >
+                          <XCircle className="w-3.5 h-3.5 text-slate-500" /> Close
+                        </Button>
+                      )}
+                    </>
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteJob(job.id)}
+                    onClick={() => setDeleteTarget(job)}
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                   </Button>
@@ -197,6 +206,32 @@ export default function RecruiterJobsPage() {
           ))}
         </div>
       )}
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Job Advertisement?"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Are you sure you want to permanently delete{' '}
+            <strong>{deleteTarget?.title}</strong>? Associated applications and match
+            evaluations for this job will also be removed.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => deleteTarget && deleteJob(deleteTarget.id)}
+            >
+              Delete Job
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </DashboardShell>
   );
 }

@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser, requireAuth } from '@/lib/auth';
-import { jobUpsertSchema } from '@/lib/validators';
-import { sanitizeText, slugify } from '@/lib/utils';
+import { jobUpsertSchema, parseJsonBody } from '@/lib/validators';
+import { parsePositiveInt, parseValidDate, sanitizeText, slugify } from '@/lib/utils';
 import { upsertSkillRecord } from '@/lib/skills-db';
 import { logAudit } from '@/lib/audit';
+import { getPlatformSettings } from '@/lib/platform-settings';
 import { EmploymentType, ExperienceLevel, JobStatus, Prisma, WorkMode } from '@prisma/client';
+
+const VALID_WORK_MODES = new Set<WorkMode>(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE']);
+const VALID_EMPLOYMENT_TYPES = new Set<EmploymentType>([
+  'FULL_TIME',
+  'PART_TIME',
+  'CONTRACT',
+  'INTERNSHIP',
+  'FREELANCE',
+]);
+const VALID_EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
+  'ENTRY',
+  'JUNIOR',
+  'MID',
+  'SENIOR',
+  'LEAD',
+  'EXECUTIVE',
+]);
+const VALID_JOB_STATUSES = new Set<JobStatus>([
+  'DRAFT',
+  'PUBLISHED',
+  'PAUSED',
+  'CLOSED',
+  'MODERATION_HOLD',
+]);
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -15,20 +40,43 @@ export async function GET(req: NextRequest) {
   const employmentType = (searchParams.get('employmentType') || '').trim();
   const experienceLevel = (searchParams.get('experienceLevel') || '').trim();
   const skill = (searchParams.get('skill') || '').trim();
-  const salaryMin = Number(searchParams.get('salaryMin') || 0);
+  const salaryMinRaw = searchParams.get('salaryMin');
   const sort = searchParams.get('sort') || 'newest';
   const mine = searchParams.get('mine') === '1';
-  const page = Math.max(1, Number(searchParams.get('page') || 1));
-  const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit') || 10)));
+  const page = parsePositiveInt(searchParams.get('page'), 1, 10_000);
+  const limit = parsePositiveInt(searchParams.get('limit'), 10, 50);
+
+  if (workMode && !VALID_WORK_MODES.has(workMode as WorkMode)) {
+    return NextResponse.json({ error: 'Invalid workMode filter.' }, { status: 400 });
+  }
+  if (employmentType && !VALID_EMPLOYMENT_TYPES.has(employmentType as EmploymentType)) {
+    return NextResponse.json({ error: 'Invalid employmentType filter.' }, { status: 400 });
+  }
+  if (experienceLevel && !VALID_EXPERIENCE_LEVELS.has(experienceLevel as ExperienceLevel)) {
+    return NextResponse.json({ error: 'Invalid experienceLevel filter.' }, { status: 400 });
+  }
+
+  let salaryMin = 0;
+  if (salaryMinRaw !== null && salaryMinRaw.trim() !== '') {
+    const parsedSalary = Number(salaryMinRaw);
+    if (!Number.isFinite(parsedSalary) || parsedSalary < 0) {
+      return NextResponse.json({ error: 'Invalid salaryMin filter.' }, { status: 400 });
+    }
+    salaryMin = Math.floor(parsedSalary);
+  }
 
   const user = await getAuthUser(req);
-
   const where: Prisma.JobWhereInput = {};
 
   if (mine && user?.role === 'RECRUITER' && user.companyId) {
     where.companyId = user.companyId;
-    const statusFilter = searchParams.get('status');
-    if (statusFilter) where.status = statusFilter as JobStatus;
+    const statusFilter = (searchParams.get('status') || '').trim();
+    if (statusFilter) {
+      if (!VALID_JOB_STATUSES.has(statusFilter as JobStatus)) {
+        return NextResponse.json({ error: 'Invalid status filter.' }, { status: 400 });
+      }
+      where.status = statusFilter as JobStatus;
+    }
   } else {
     where.status = 'PUBLISHED';
   }
@@ -122,8 +170,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = jobUpsertSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -136,8 +187,14 @@ export async function POST(req: NextRequest) {
     }
 
     const d = parsed.data;
+    const settings = await getPlatformSettings();
     // Enforce Part 6 Feature 3: AI-generated descriptions require human approval before publication
-    if (d.aiGenerated && d.status === 'PUBLISHED' && !d.humanApproved) {
+    if (
+      settings.requireHumanApprovalForAIJobs &&
+      d.aiGenerated &&
+      d.status === 'PUBLISHED' &&
+      !d.humanApproved
+    ) {
       return NextResponse.json(
         {
           error:
@@ -147,7 +204,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const slug = `${slugify(d.title)}-${Math.random().toString(36).slice(2, 7)}`;
+    const baseSlug = slugify(d.title) || 'role';
+    const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
+    const parsedDeadline = d.deadline ? parseValidDate(d.deadline) : null;
 
     const job = await prisma.job.create({
       data: {
@@ -171,10 +230,10 @@ export async function POST(req: NextRequest) {
         workMode: d.workMode,
         salaryMin: d.salaryMin ?? null,
         salaryMax: d.salaryMax ?? null,
-        salaryCurrency: d.salaryCurrency || 'USD',
+        salaryCurrency: sanitizeText(d.salaryCurrency || 'USD').slice(0, 10) || 'USD',
         requiredLanguages: d.requiredLanguages.map(sanitizeText),
         status: d.status,
-        deadline: d.deadline ? new Date(d.deadline) : null,
+        deadline: parsedDeadline,
         publishedAt: d.status === 'PUBLISHED' ? new Date() : null,
         aiGenerated: Boolean(d.aiGenerated),
         humanApproved: Boolean(d.humanApproved),

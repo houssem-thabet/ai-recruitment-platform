@@ -11,7 +11,15 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get('q') || '').trim();
   const skill = (searchParams.get('skill') || '').trim();
   const location = (searchParams.get('location') || '').trim();
-  const minExp = Number(searchParams.get('minExp') || 0);
+  const minExpRaw = searchParams.get('minExp');
+  let minExp = 0;
+  if (minExpRaw !== null && minExpRaw.trim() !== '') {
+    const parsedMinExp = Number(minExpRaw);
+    if (!Number.isFinite(parsedMinExp) || parsedMinExp < 0) {
+      return NextResponse.json({ error: 'Invalid minExp query parameter.' }, { status: 400 });
+    }
+    minExp = parsedMinExp;
+  }
   const education = (searchParams.get('education') || '').trim();
   const language = (searchParams.get('language') || '').trim();
   const interest = (searchParams.get('interest') || '').trim();

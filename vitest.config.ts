@@ -9,6 +9,7 @@ export default defineConfig({
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
       'tests/e2e/**/*.test.ts',
+      'tests/qa/**/*.test.ts',
     ],
     testTimeout: 30000,
   },

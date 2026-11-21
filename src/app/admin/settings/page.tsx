@@ -74,23 +74,55 @@ export default function AdminSettingsPage() {
               />
             </div>
 
-            <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.requireHumanApprovalForAIJobs !== false}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    requireHumanApprovalForAIJobs: e.target.checked,
-                  })
-                }
-                className="w-4 h-4 rounded text-[#367BF5]"
-              />
-              <span>
-                Enforce mandatory human approval before publishing AI-generated job
-                descriptions
-              </span>
-            </label>
+            <div className="space-y-3 pt-1">
+              <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.requireHumanApprovalForAIJobs !== false}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      requireHumanApprovalForAIJobs: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded text-[#367BF5]"
+                />
+                <span>
+                  Enforce mandatory human approval before publishing AI-generated job
+                  descriptions
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allowPublicCandidateRegistration !== false}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      allowPublicCandidateRegistration: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded text-[#367BF5]"
+                />
+                <span>Allow public self-service Candidate registration</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-sm font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allowPublicRecruiterRegistration !== false}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      allowPublicRecruiterRegistration: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded text-[#367BF5]"
+                />
+                <span>Allow public self-service Recruiter &amp; Company registration</span>
+              </label>
+            </div>
 
             <div className="flex justify-end">
               <Button onClick={savePlatformSettings} loading={saving}>

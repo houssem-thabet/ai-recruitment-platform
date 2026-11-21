@@ -92,13 +92,17 @@ export default function RecruiterInterviewsPage() {
 
   const handleSaveCustomQuestions = async () => {
     if (!questionTarget) return;
-    await apiFetch(`/api/interviews/${questionTarget.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ generatedQuestions: questions }),
-    });
-    toast.success('Customized interview questions saved!');
-    setQuestionTarget(null);
-    await loadInterviews();
+    try {
+      await apiFetch(`/api/interviews/${questionTarget.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ generatedQuestions: questions }),
+      });
+      toast.success('Customized interview questions saved!');
+      setQuestionTarget(null);
+      await loadInterviews();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const openEvaluationWorkspace = (interview: any) => {

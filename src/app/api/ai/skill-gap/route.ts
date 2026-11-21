@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import {
   runSkillGapAnalysisAI,
   CAREER_PATH_BLUEPRINTS,
@@ -33,9 +34,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
-  const started = Date.now();
+  const json = await parseJsonBody<{ jobId?: string; careerPathId?: string }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const { jobId, careerPathId } = await req.json();
+    const { jobId, careerPathId } = json.data;
 
     const profile = await prisma.candidateProfile.findUnique({
       where: { userId: auth.user.id },

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
-import { Card, StatusBadge, PageLoader } from '@/components/ui/primitives';
+import { Card, StatusBadge, ScoreBadge, PageLoader } from '@/components/ui/primitives';
 import { apiFetch } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 
@@ -38,27 +38,35 @@ export default function AdminApplicationsMonitoringPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {applications.map((a) => (
-                <tr key={a.id}>
-                  <td className="px-5 py-4 font-semibold text-[#101B35] dark:text-white">
-                    {a.candidateProfile?.user?.firstName}{' '}
-                    {a.candidateProfile?.user?.lastName}
-                  </td>
-                  <td className="px-5 py-4 text-xs">{a.job?.title}</td>
-                  <td className="px-5 py-4 text-xs">{a.job?.company?.name}</td>
-                  <td className="px-5 py-4">
-                    <StatusBadge status={a.status} />
-                  </td>
-                  <td className="px-5 py-4 font-mono font-bold text-[#367BF5]">
-                    {a.aiMatchScore !== null && a.aiMatchScore !== undefined
-                      ? `${Math.round(a.aiMatchScore)}%`
-                      : '—'}
-                  </td>
-                  <td className="px-5 py-4 text-xs text-slate-500">
-                    {formatDate(a.appliedAt || a.createdAt)}
-                  </td>
-                </tr>
-              ))}
+              {applications.map((a) => {
+                const resolvedScore =
+                  a.matchResult?.recruiterOverrideScore ??
+                  a.matchResult?.overallScore ??
+                  a.aiMatchScore;
+                return (
+                  <tr key={a.id}>
+                    <td className="px-5 py-4 font-semibold text-[#101B35] dark:text-white">
+                      {a.candidateProfile?.user?.firstName}{' '}
+                      {a.candidateProfile?.user?.lastName}
+                    </td>
+                    <td className="px-5 py-4 text-xs">{a.job?.title}</td>
+                    <td className="px-5 py-4 text-xs">{a.job?.company?.name}</td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={a.status} />
+                    </td>
+                    <td className="px-5 py-4 font-mono font-bold text-[#367BF5]">
+                      {resolvedScore !== null && resolvedScore !== undefined ? (
+                        <ScoreBadge score={Math.round(Number(resolvedScore))} />
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-xs text-slate-500">
+                      {formatDate(a.appliedAt || a.createdAt)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </Card>

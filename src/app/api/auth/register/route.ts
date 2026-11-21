@@ -6,10 +6,11 @@ import {
   attachSessionCookie,
   getDashboardPathForRole,
 } from '@/lib/auth';
-import { registerSchema } from '@/lib/validators';
+import { parseJsonBody, registerSchema } from '@/lib/validators';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { logAudit, createNotification } from '@/lib/audit';
-import { sanitizeText, slugify } from '@/lib/utils';
+import { sanitizeHttpUrl, sanitizeText, slugify } from '@/lib/utils';
+import { getPlatformSettings } from '@/lib/platform-settings';
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -21,8 +22,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
 
     // Explicitly block any attempt to register as ADMIN through public endpoint
     if (body?.accountType === 'ADMIN' || body?.role === 'ADMIN') {
@@ -50,6 +54,26 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+    const platformSettings = await getPlatformSettings();
+    if (
+      data.accountType === 'CANDIDATE' &&
+      !platformSettings.allowPublicCandidateRegistration
+    ) {
+      return NextResponse.json(
+        { error: 'Public candidate registration is currently paused by an administrator.' },
+        { status: 403 }
+      );
+    }
+    if (
+      data.accountType === 'RECRUITER' &&
+      !platformSettings.allowPublicRecruiterRegistration
+    ) {
+      return NextResponse.json(
+        { error: 'Public recruiter registration is currently paused by an administrator.' },
+        { status: 403 }
+      );
+    }
+
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -87,13 +111,13 @@ export async function POST(req: NextRequest) {
           },
         });
       } else if (data.accountType === 'RECRUITER') {
-        const baseSlug = slugify(data.companyName!);
+        const baseSlug = slugify(data.companyName!) || 'company';
         const uniqueSlug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
         const company = await tx.company.create({
           data: {
             name: sanitizeText(data.companyName!),
             slug: uniqueSlug,
-            website: data.companyWebsite ? sanitizeText(data.companyWebsite) : null,
+            website: sanitizeHttpUrl(data.companyWebsite),
             description: sanitizeText(data.companyDescription!),
             industry: sanitizeText(data.industry!),
             size: sanitizeText(data.companySize!),

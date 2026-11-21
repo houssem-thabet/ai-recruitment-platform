@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { generateInterviewQuestionsAI } from '@/lib/ai/engine';
 import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
@@ -9,47 +10,61 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     let jobTitle = String(body.jobTitle || '');
     let jobDescription = String(body.jobDescription || '');
-    let requiredSkills: string[] = Array.isArray(body.requiredSkills) ? body.requiredSkills : [];
+    let requiredSkills: string[] = Array.isArray(body.requiredSkills) ? body.requiredSkills.map(String) : [];
     let seniorityLevel = String(body.seniorityLevel || 'MID');
     let candidateExperienceSummary = body.candidateExperienceSummary
       ? String(body.candidateExperienceSummary)
       : undefined;
 
+    let verifiedInterviewId: string | null = null;
+
     if (body.interviewId) {
       const interview = await prisma.interview.findUnique({
-        where: { id: body.interviewId },
+        where: { id: String(body.interviewId) },
         include: {
           job: { include: { skills: { include: { skill: true } } } },
           candidateProfile: { include: { experiences: { take: 2 } } },
         },
       });
-      if (interview && interview.job.companyId === auth.user.companyId) {
-        jobTitle = interview.job.title;
-        jobDescription = interview.job.description;
-        requiredSkills = interview.job.skills.map((s) => s.skill.name);
-        seniorityLevel = interview.job.experienceLevel;
-        candidateExperienceSummary = interview.candidateProfile.experiences
-          .map((e) => `${e.title} at ${e.company}`)
-          .join('; ');
+      if (!interview) {
+        return NextResponse.json({ error: 'Interview not found.' }, { status: 404 });
       }
+      if (interview.job.companyId !== auth.user.companyId) {
+        return NextResponse.json({ error: 'Forbidden interview access.' }, { status: 403 });
+      }
+      verifiedInterviewId = interview.id;
+      jobTitle = interview.job.title;
+      jobDescription = interview.job.description;
+      requiredSkills = interview.job.skills.map((s) => s.skill.name);
+      seniorityLevel = interview.job.experienceLevel;
+      candidateExperienceSummary = interview.candidateProfile.experiences
+        .map((e) => `${e.title} at ${e.company}`)
+        .join('; ');
     } else if (body.jobId) {
       const job = await prisma.job.findUnique({
-        where: { id: body.jobId },
+        where: { id: String(body.jobId) },
         include: { skills: { include: { skill: true } } },
       });
-      if (job) {
-        jobTitle = job.title;
-        jobDescription = job.description;
-        requiredSkills = job.skills.map((s) => s.skill.name);
-        seniorityLevel = job.experienceLevel;
+      if (!job) {
+        return NextResponse.json({ error: 'Job not found.' }, { status: 404 });
       }
+      if (job.companyId !== auth.user.companyId) {
+        return NextResponse.json({ error: 'Forbidden job access.' }, { status: 403 });
+      }
+      jobTitle = job.title;
+      jobDescription = job.description;
+      requiredSkills = job.skills.map((s) => s.skill.name);
+      seniorityLevel = job.experienceLevel;
     }
 
-    if (!jobTitle) {
+    if (!jobTitle.trim()) {
       return NextResponse.json({ error: 'Job title or jobId is required.' }, { status: 400 });
     }
 
@@ -61,9 +76,9 @@ export async function POST(req: NextRequest) {
       candidateExperienceSummary,
     });
 
-    if (body.interviewId && body.saveToInterview) {
+    if (verifiedInterviewId && body.saveToInterview) {
       await prisma.interview.update({
-        where: { id: body.interviewId },
+        where: { id: verifiedInterviewId },
         data: { generatedQuestions: gen.questions as unknown as object },
       });
     }

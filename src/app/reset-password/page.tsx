@@ -42,7 +42,7 @@ function ResetForm() {
           Set New Password
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Choose a strong password (8+ characters, including uppercase and number).
+          Choose a strong password (8+ characters, including uppercase, lowercase, and a number).
         </p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -9,6 +9,7 @@ import {
   clearSessionCookie,
 } from '@/lib/auth';
 import { sanitizeText } from '@/lib/utils';
+import { parseJsonBody, strongPasswordSchema } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
@@ -43,49 +44,71 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const { firstName, lastName, phone, currentPassword, newPassword } = body;
 
     const updates: Record<string, unknown> = {};
-    if (typeof firstName === 'string' && firstName.trim().length >= 2) {
-      updates.firstName = sanitizeText(firstName);
+    if (firstName !== undefined) {
+      const cleaned = sanitizeText(String(firstName));
+      if (cleaned.length < 2 || cleaned.length > 80) {
+        return NextResponse.json(
+          { error: 'First name must be between 2 and 80 characters.' },
+          { status: 400 }
+        );
+      }
+      updates.firstName = cleaned;
     }
-    if (typeof lastName === 'string' && lastName.trim().length >= 2) {
-      updates.lastName = sanitizeText(lastName);
+    if (lastName !== undefined) {
+      const cleaned = sanitizeText(String(lastName));
+      if (cleaned.length < 2 || cleaned.length > 80) {
+        return NextResponse.json(
+          { error: 'Last name must be between 2 and 80 characters.' },
+          { status: 400 }
+        );
+      }
+      updates.lastName = cleaned;
     }
     if (phone !== undefined) {
-      updates.phone = phone ? sanitizeText(String(phone)) : null;
+      const cleanedPhone = phone ? sanitizeText(String(phone)) : '';
+      if (cleanedPhone.length > 30) {
+        return NextResponse.json(
+          { error: 'Phone number cannot exceed 30 characters.' },
+          { status: 400 }
+        );
+      }
+      updates.phone = cleanedPhone || null;
     }
 
-    if (newPassword) {
+    if (newPassword !== undefined && newPassword !== '') {
       if (!currentPassword) {
         return NextResponse.json(
           { error: 'Current password is required to set a new password.' },
           { status: 400 }
         );
       }
-      if (
-        String(newPassword).length < 8 ||
-        !/[A-Z]/.test(newPassword) ||
-        !/[0-9]/.test(newPassword)
-      ) {
+      const pwCheck = strongPasswordSchema.safeParse(String(newPassword));
+      if (!pwCheck.success) {
         return NextResponse.json(
           {
             error:
-              'New password must be at least 8 characters and include an uppercase letter and number.',
+              pwCheck.error.issues[0]?.message ||
+              'New password must be 8–128 characters with uppercase, lowercase, and a number.',
           },
           { status: 400 }
         );
       }
       const dbUser = await prisma.user.findUnique({ where: { id: auth.user.id } });
-      if (!dbUser || !(await verifyPassword(currentPassword, dbUser.passwordHash))) {
+      if (!dbUser || !(await verifyPassword(String(currentPassword), dbUser.passwordHash))) {
         return NextResponse.json(
           { error: 'Current password is incorrect.' },
           { status: 400 }
         );
       }
-      updates.passwordHash = await hashPassword(newPassword);
+      updates.passwordHash = await hashPassword(pwCheck.data);
     }
 
     const updated = await prisma.user.update({
@@ -140,7 +163,21 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
+    let orphanCompanyId: string | null = null;
+    if (auth.user.companyId) {
+      const recruiterCount = await prisma.recruiterProfile.count({
+        where: { companyId: auth.user.companyId },
+      });
+      if (recruiterCount <= 1) {
+        orphanCompanyId = auth.user.companyId;
+      }
+    }
+
     await prisma.user.delete({ where: { id: auth.user.id } });
+    if (orphanCompanyId) {
+      await prisma.company.delete({ where: { id: orphanCompanyId } }).catch(() => null);
+    }
+
     const res = NextResponse.json({
       message: 'Account and associated personal records permanently deleted.',
     });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { escapeCsvCell } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER', 'ADMIN']);
@@ -113,12 +114,12 @@ export async function GET(req: NextRequest) {
     const rows = applications
       .map((a) =>
         [
-          `"${a.candidateProfile.user.firstName} ${a.candidateProfile.user.lastName}"`,
-          `"${a.candidateProfile.user.email}"`,
-          `"${a.job.title.replace(/"/g, '""')}"`,
-          `"${a.job.company.name.replace(/"/g, '""')}"`,
-          a.status,
-          new Date(a.appliedAt).toISOString().split('T')[0],
+          escapeCsvCell(`${a.candidateProfile.user.firstName} ${a.candidateProfile.user.lastName}`),
+          escapeCsvCell(a.candidateProfile.user.email),
+          escapeCsvCell(a.job.title),
+          escapeCsvCell(a.job.company.name),
+          escapeCsvCell(a.status),
+          escapeCsvCell(new Date(a.appliedAt).toISOString().split('T')[0]),
         ].join(',')
       )
       .join('\n');

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
 
 export async function GET(
@@ -86,8 +87,11 @@ export async function PUT(
     return NextResponse.json({ error: 'CV not found or unauthorized' }, { status: 404 });
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     if (body.setPrimary === true) {
       await prisma.cVDocument.updateMany({
         where: { candidateProfileId: cv.candidateProfileId },

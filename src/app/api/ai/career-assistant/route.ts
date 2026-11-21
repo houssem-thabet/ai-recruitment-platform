@@ -12,6 +12,7 @@ import {
 } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
 import { sanitizeText } from '@/lib/utils';
+import { parseJsonBody } from '@/lib/validators';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
@@ -30,8 +31,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody<{ message?: string }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const { message } = await req.json();
+    const { message } = json.data;
     if (!message || String(message).trim().length === 0) {
       return NextResponse.json({ error: 'Message is required.' }, { status: 400 });
     }

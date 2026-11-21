@@ -25,7 +25,7 @@ import {
   AIModeBadge,
   EmptyState,
 } from '@/components/ui/primitives';
-import { apiFetch, getStoredToken } from '@/lib/api-client';
+import { apiDownload, apiFetch, getStoredToken } from '@/lib/api-client';
 import { useToast } from '@/components/providers/ToastProvider';
 import { formatDateTime } from '@/lib/utils';
 
@@ -249,15 +249,18 @@ export default function CandidateCVPage() {
                   >
                     <Eye className="w-3.5 h-3.5" /> Preview Text
                   </Button>
-                  <a
-                    href={`/api/candidates/cv/${cv.id}?download=1`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      apiDownload(
+                        `/api/candidates/cv/${cv.id}?download=1`,
+                        cv.originalName || 'candidate-cv.pdf'
+                      ).catch((err) => toast.error(err.message))
+                    }
                   >
-                    <Button variant="outline" size="sm">
-                      <Download className="w-3.5 h-3.5" /> File
-                    </Button>
-                  </a>
+                    <Download className="w-3.5 h-3.5" /> File
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

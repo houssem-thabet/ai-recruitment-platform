@@ -20,5 +20,11 @@ export async function GET(req: NextRequest) {
     orderBy: { appliedAt: 'desc' },
   });
 
-  return NextResponse.json({ applications });
+  // Never expose confidential recruiter privateNotes to candidate endpoints
+  const sanitized = applications.map((a) => ({
+    ...a,
+    privateNotes: undefined,
+  }));
+
+  return NextResponse.json({ applications: sanitized });
 }

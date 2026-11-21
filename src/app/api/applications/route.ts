@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { applicationCreateSchema } from '@/lib/validators';
-import { sanitizeText } from '@/lib/utils';
+import { applicationCreateSchema, parseJsonBody } from '@/lib/validators';
+import { escapeCsvCell, sanitizeText } from '@/lib/utils';
 import { computeCandidateJobMatch } from '@/lib/ai/engine';
 import { createNotification, logAudit, logAIUsage } from '@/lib/audit';
 import { ApplicationStatus, Prisma } from '@prisma/client';
+
+const VALID_APPLICATION_STATUSES = new Set<ApplicationStatus>([
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'SHORTLISTED',
+  'INTERVIEW_SCHEDULED',
+  'INTERVIEW_COMPLETED',
+  'OFFERED',
+  'HIRED',
+  'REJECTED',
+  'WITHDRAWN',
+]);
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -17,6 +29,10 @@ export async function GET(req: NextRequest) {
   const search = (searchParams.get('q') || '').trim();
   const sort = searchParams.get('sort') || 'recent';
   const format = searchParams.get('format');
+
+  if (status && !VALID_APPLICATION_STATUSES.has(status as ApplicationStatus)) {
+    return NextResponse.json({ error: 'Invalid application status filter.' }, { status: 400 });
+  }
 
   if (auth.user.role === 'CANDIDATE') {
     const applications = await prisma.application.findMany({
@@ -112,14 +128,17 @@ export async function GET(req: NextRequest) {
   });
 
   // Attach corresponding MatchResult for each application
-  const matchPairs = await prisma.matchResult.findMany({
-    where: {
-      OR: applications.map((a) => ({
-        jobId: a.jobId,
-        candidateProfileId: a.candidateProfileId,
-      })),
-    },
-  });
+  const matchPairs =
+    applications.length > 0
+      ? await prisma.matchResult.findMany({
+          where: {
+            OR: applications.map((a) => ({
+              jobId: a.jobId,
+              candidateProfileId: a.candidateProfileId,
+            })),
+          },
+        })
+      : [];
   const matchMap = new Map(
     matchPairs.map((m) => [`${m.jobId}:${m.candidateProfileId}`, m])
   );
@@ -132,8 +151,9 @@ export async function GET(req: NextRequest) {
   if (sort === 'score_desc') {
     enriched.sort((a, b) => {
       const sA = a.matchResult?.recruiterOverrideScore ?? a.matchResult?.overallScore ?? 0;
-      const sB = b.matchResult?.recruiterOverrideScore ?? b.matchResult?.overallScore ?? 0;
-      return sB - sA;
+      const sB = a.matchResult?.recruiterOverrideScore ?? b.matchResult?.overallScore ?? 0;
+      const bVal = b.matchResult?.recruiterOverrideScore ?? b.matchResult?.overallScore ?? 0;
+      return bVal - sA;
     });
   }
 
@@ -145,13 +165,13 @@ export async function GET(req: NextRequest) {
         const score =
           a.matchResult?.recruiterOverrideScore ?? a.matchResult?.overallScore ?? 'N/A';
         return [
-          `"${a.candidateProfile.user.firstName} ${a.candidateProfile.user.lastName}"`,
-          `"${a.candidateProfile.user.email}"`,
-          `"${a.job.title.replace(/"/g, '""')}"`,
-          a.status,
-          score,
-          `"${(a.matchResult?.matchingSkills || []).join('; ')}"`,
-          new Date(a.appliedAt).toISOString().split('T')[0],
+          escapeCsvCell(`${a.candidateProfile.user.firstName} ${a.candidateProfile.user.lastName}`),
+          escapeCsvCell(a.candidateProfile.user.email),
+          escapeCsvCell(a.job.title),
+          escapeCsvCell(a.status),
+          escapeCsvCell(score),
+          escapeCsvCell((a.matchResult?.matchingSkills || []).join('; ')),
+          escapeCsvCell(new Date(a.appliedAt).toISOString().split('T')[0]),
         ].join(',');
       })
       .join('\n');
@@ -171,8 +191,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = applicationCreateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -194,6 +217,13 @@ export async function POST(req: NextRequest) {
     if (!job || job.status !== 'PUBLISHED') {
       return NextResponse.json(
         { error: 'This job is no longer accepting new applications.' },
+        { status: 400 }
+      );
+    }
+
+    if (job.deadline && new Date(job.deadline).getTime() < Date.now()) {
+      return NextResponse.json(
+        { error: 'The application deadline for this position has passed.' },
         { status: 400 }
       );
     }
@@ -226,7 +256,23 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const cvId = parsed.data.cvDocumentId || profile?.cvDocuments[0]?.id || null;
+    let cvId: string | null = profile?.cvDocuments[0]?.id || null;
+    if (parsed.data.cvDocumentId) {
+      const ownedCv = await prisma.cVDocument.findFirst({
+        where: {
+          id: parsed.data.cvDocumentId,
+          candidateProfileId,
+        },
+        select: { id: true },
+      });
+      if (!ownedCv) {
+        return NextResponse.json(
+          { error: 'Forbidden: Invalid or unauthorized CV document selection.' },
+          { status: 403 }
+        );
+      }
+      cvId = ownedCv.id;
+    }
 
     const application = await prisma.application.create({
       data: {

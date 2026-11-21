@@ -57,6 +57,10 @@ export default function RecruiterCompanyPage() {
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+      toast.error('Please upload a PNG, JPEG, WEBP, or GIF image.');
+      return;
+    }
     if (file.size > 120 * 1024) {
       toast.error('Please choose a logo image under 120 KB.');
       return;
@@ -116,10 +120,10 @@ export default function RecruiterCompanyPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="cursor-pointer inline-block text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#367BF5]/10 text-[#367BF5] hover:bg-[#367BF5]/20">
-                      Upload Logo (PNG/SVG &lt; 120 KB)
+                      Upload Logo (PNG/JPG/WEBP &lt; 120 KB)
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={handleLogoFile}
                         className="hidden"
                       />

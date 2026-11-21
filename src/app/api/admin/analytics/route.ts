@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { escapeCsvCell } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN']);
@@ -32,12 +33,12 @@ export async function GET(req: NextRequest) {
     const rows = jobs
       .map((j) =>
         [
-          `"${j.title.replace(/"/g, '""')}"`,
-          `"${j.company.name.replace(/"/g, '""')}"`,
-          j.status,
-          j.viewsCount,
-          j._count.applications,
-          new Date(j.createdAt).toISOString().split('T')[0],
+          escapeCsvCell(j.title),
+          escapeCsvCell(j.company.name),
+          escapeCsvCell(j.status),
+          escapeCsvCell(j.viewsCount),
+          escapeCsvCell(j._count.applications),
+          escapeCsvCell(new Date(j.createdAt).toISOString().split('T')[0]),
         ].join(',')
       )
       .join('\n');

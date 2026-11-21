@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import { Button, Card, StatusBadge, PageLoader } from '@/components/ui/primitives';
-import { apiFetch, getStoredToken } from '@/lib/api-client';
+import { apiDownload, apiFetch } from '@/lib/api-client';
 import { useToast } from '@/components/providers/ToastProvider';
 import { formatDate } from '@/lib/utils';
 
@@ -20,22 +20,15 @@ export default function AdminReportsPage() {
   }, []);
 
   const exportPlatformCsv = async () => {
-    const token = getStoredToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch('/api/admin/analytics?format=csv', {
-      headers,
-      credentials: 'include',
-    });
-    const csv = await res.text();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'talentai-platform-report.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Platform executive report exported!');
+    try {
+      await apiDownload(
+        '/api/admin/analytics?format=csv',
+        'talentai-platform-report.csv'
+      );
+      toast.success('Platform executive report exported!');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (

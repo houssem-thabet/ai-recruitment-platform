@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { analyzeCVText } from '@/lib/ai/engine';
 import { getLastLLMDiagnostics } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
@@ -9,13 +10,16 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE', 'RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const { cvDocumentId, rawText } = body;
 
     if (cvDocumentId) {
       const cv = await prisma.cVDocument.findUnique({
-        where: { id: cvDocumentId },
+        where: { id: String(cvDocumentId) },
         include: {
           candidateProfile: { include: { user: true } },
         },
@@ -29,6 +33,28 @@ export async function POST(req: NextRequest) {
         cv.candidateProfileId !== auth.user.candidateProfileId
       ) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      // Security: Recruiters may only analyze a CV if the candidate applied to their company's job
+      if (auth.user.role === 'RECRUITER') {
+        const authorizedApp = auth.user.companyId
+          ? await prisma.application.findFirst({
+              where: {
+                candidateProfileId: cv.candidateProfileId,
+                job: { companyId: auth.user.companyId },
+              },
+              select: { id: true },
+            })
+          : null;
+        if (!authorizedApp) {
+          return NextResponse.json(
+            {
+              error:
+                'Forbidden: Recruiters may only analyze CVs attached to applications at their company.',
+            },
+            { status: 403 }
+          );
+        }
       }
 
       const run = await analyzeCVText(

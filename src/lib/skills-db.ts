@@ -1,16 +1,31 @@
 import prisma from '@/lib/prisma';
-import { slugify } from '@/lib/utils';
+import { sanitizeText, slugify } from '@/lib/utils';
 import { normalizeSkillName } from '@/lib/ai/skill-taxonomy';
 import { SkillCategory } from '@prisma/client';
 
-export async function upsertSkillRecord(rawName: string, overrideCategory?: SkillCategory) {
-  const norm = normalizeSkillName(rawName);
-  const slug = slugify(norm.canonical) || rawName.toLowerCase().trim();
-  const category = (overrideCategory || norm.category || 'TECHNICAL') as SkillCategory;
+const VALID_CATEGORIES = new Set<SkillCategory>([
+  'TECHNICAL',
+  'SOFT',
+  'TOOL',
+  'DOMAIN',
+  'LANGUAGE',
+]);
+
+export async function upsertSkillRecord(rawName: string, overrideCategory?: SkillCategory | string) {
+  const cleanedRaw = sanitizeText(rawName).slice(0, 80);
+  const norm = normalizeSkillName(cleanedRaw);
+  const canonical = sanitizeText(norm.canonical).slice(0, 80) || cleanedRaw;
+  const slug =
+    slugify(canonical) ||
+    `skill-${Buffer.from(canonical).toString('hex').slice(0, 12)}`;
+  const candidateCategory = (overrideCategory || norm.category || 'TECHNICAL') as SkillCategory;
+  const category: SkillCategory = VALID_CATEGORIES.has(candidateCategory)
+    ? candidateCategory
+    : 'TECHNICAL';
 
   const existing = await prisma.skill.findFirst({
     where: {
-      OR: [{ slug }, { name: { equals: norm.canonical, mode: 'insensitive' } }],
+      OR: [{ slug }, { name: { equals: canonical, mode: 'insensitive' } }],
     },
   });
 
@@ -18,7 +33,7 @@ export async function upsertSkillRecord(rawName: string, overrideCategory?: Skil
 
   return prisma.skill.create({
     data: {
-      name: norm.canonical,
+      name: canonical,
       slug,
       category,
     },

@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { evaluateInterviewNotesAI } from '@/lib/ai/engine';
 import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
 import { logAIUsage, logAudit } from '@/lib/audit';
 import { EvaluationRecommendation, Prisma } from '@prisma/client';
 
+const VALID_RECOMMENDATIONS = new Set<EvaluationRecommendation>([
+  'STRONG_YES',
+  'YES',
+  'MIXED',
+  'NO',
+  'PENDING',
+]);
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const {
       interviewId,
       consentConfirmed,
@@ -23,6 +35,16 @@ export async function POST(req: NextRequest) {
       rawNotes: string;
       humanRecommendation?: EvaluationRecommendation;
     };
+
+    if (
+      humanRecommendation &&
+      !VALID_RECOMMENDATIONS.has(humanRecommendation as EvaluationRecommendation)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid humanRecommendation value.' },
+        { status: 400 }
+      );
+    }
 
     if (!consentConfirmed) {
       return NextResponse.json(

@@ -10,6 +10,7 @@ import { analyzeCVText } from '@/lib/ai/engine';
 import { upsertSkillRecord } from '@/lib/skills-db';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { logAudit, logAIUsage } from '@/lib/audit';
+import { getPlatformSettings } from '@/lib/platform-settings';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
@@ -48,6 +49,15 @@ export async function POST(req: NextRequest) {
 
     const arrayBuf = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuf);
+
+    const platformSettings = await getPlatformSettings();
+    const maxBytes = platformSettings.maxCvSizeMb * 1024 * 1024;
+    if (buffer.byteLength > maxBytes) {
+      return NextResponse.json(
+        { error: `CV file exceeds the ${platformSettings.maxCvSizeMb} MB platform limit.` },
+        { status: 400 }
+      );
+    }
 
     const validation = validateCVFileBuffer(file.name, buffer, file.type);
     if (!validation.valid || !validation.detectedType) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { generateResetToken } from '@/lib/auth';
-import { forgotPasswordSchema } from '@/lib/validators';
+import { forgotPasswordSchema, parseJsonBody } from '@/lib/validators';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { logAudit } from '@/lib/audit';
 
@@ -15,8 +15,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = forgotPasswordSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

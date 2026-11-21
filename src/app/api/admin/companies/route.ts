@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
@@ -24,10 +25,27 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN']);
   if (auth.errorResponse) return auth.errorResponse;
 
-  const { companyId, verified } = await req.json();
+  const json = await parseJsonBody<{ companyId?: string; verified?: boolean }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
+  const companyId =
+    typeof json.data.companyId === 'string' ? json.data.companyId.trim() : '';
+  if (!companyId) {
+    return NextResponse.json({ error: 'companyId is required.' }, { status: 400 });
+  }
+
+  const existing = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: 'Company not found.' }, { status: 404 });
+  }
+
+  const verified = Boolean(json.data.verified);
   const updated = await prisma.company.update({
     where: { id: companyId },
-    data: { verified: Boolean(verified) },
+    data: { verified },
   });
 
   await logAudit({

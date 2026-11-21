@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
@@ -26,9 +27,17 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
-  const { jobId } = await req.json();
+  const json = await parseJsonBody<{ jobId?: string }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
+  const jobId = typeof json.data.jobId === 'string' ? json.data.jobId.trim() : '';
   if (!jobId) {
     return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
+  }
+
+  const job = await prisma.job.findUnique({ where: { id: jobId }, select: { id: true } });
+  if (!job) {
+    return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }
 
   const candidateProfileId = auth.user.candidateProfileId!;

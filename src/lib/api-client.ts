@@ -57,3 +57,43 @@ export async function apiFetch<T = any>(
   }
   return data as T;
 }
+
+/**
+ * Authenticated binary/CSV file downloader that works reliably in both cookie-based
+ * standalone browser sessions and cross-origin Bearer-authenticated preview iframes.
+ */
+export async function apiDownload(path: string, fallbackFilename: string): Promise<void> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(path, {
+    headers,
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const errJson = await res.json().catch(() => null);
+      throw new Error(errJson?.error || `Download failed (${res.status})`);
+    }
+    throw new Error(`Download failed (${res.status})`);
+  }
+
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const resolvedFilename = match?.[1]
+    ? decodeURIComponent(match[1])
+    : fallbackFilename;
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = resolvedFilename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

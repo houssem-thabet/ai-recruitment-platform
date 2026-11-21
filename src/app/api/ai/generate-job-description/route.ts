@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { generateJobDescriptionAI } from '@/lib/ai/engine';
 import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
@@ -9,8 +10,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     if (!body.title || !Array.isArray(body.requiredSkills) || body.requiredSkills.length === 0) {
       return NextResponse.json(
         { error: 'Job title and at least one required skill are needed.' },

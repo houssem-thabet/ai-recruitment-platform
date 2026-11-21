@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { hashPassword, hashResetToken } from '@/lib/auth';
-import { resetPasswordSchema } from '@/lib/validators';
+import { parseJsonBody, resetPasswordSchema } from '@/lib/validators';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`reset-password:${ip}`, 10, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Too many reset attempts. Retry in ${rl.resetInSeconds}s.` },
+      { status: 429 }
+    );
+  }
+
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = resetPasswordSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -20,6 +33,7 @@ export async function POST(req: NextRequest) {
       where: {
         resetTokenHash: tokenHash,
         resetTokenExpiresAt: { gt: new Date() },
+        status: 'ACTIVE',
       },
     });
 
@@ -46,6 +60,7 @@ export async function POST(req: NextRequest) {
       action: 'PASSWORD_RESET_COMPLETED',
       entityType: 'User',
       entityId: user.id,
+      ipAddress: ip,
     });
 
     return NextResponse.json({

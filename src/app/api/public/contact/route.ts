@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sanitizeText } from '@/lib/utils';
+import { parseJsonBody } from '@/lib/validators';
 import { logAudit } from '@/lib/audit';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -18,8 +19,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many messages sent. Please wait a minute.' }, { status: 429 });
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = contactSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

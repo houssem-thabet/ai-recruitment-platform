@@ -6,7 +6,7 @@ import {
   attachSessionCookie,
   getDashboardPathForRole,
 } from '@/lib/auth';
-import { loginSchema } from '@/lib/validators';
+import { loginSchema, parseJsonBody } from '@/lib/validators';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { logAudit } from '@/lib/audit';
 
@@ -20,8 +20,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

@@ -1,11 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser, requireAuth } from '@/lib/auth';
-import { sanitizeText } from '@/lib/utils';
+import { parseValidDate, sanitizeText } from '@/lib/utils';
+import { parseJsonBody } from '@/lib/validators';
 import { upsertSkillRecord } from '@/lib/skills-db';
 import { computeCandidateJobMatch } from '@/lib/ai/engine';
 import { logAudit } from '@/lib/audit';
+import { getPlatformSettings } from '@/lib/platform-settings';
 import { EmploymentType, ExperienceLevel, JobStatus, WorkMode } from '@prisma/client';
+
+const VALID_WORK_MODES = new Set<WorkMode>(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE']);
+const VALID_EMPLOYMENT_TYPES = new Set<EmploymentType>([
+  'FULL_TIME',
+  'PART_TIME',
+  'CONTRACT',
+  'INTERNSHIP',
+  'FREELANCE',
+]);
+const VALID_EXPERIENCE_LEVELS = new Set<ExperienceLevel>([
+  'ENTRY',
+  'JUNIOR',
+  'MID',
+  'SENIOR',
+  'LEAD',
+  'EXECUTIVE',
+]);
+const RECRUITER_JOB_STATUSES = new Set<JobStatus>(['DRAFT', 'PUBLISHED', 'PAUSED', 'CLOSED']);
+const ADMIN_JOB_STATUSES = new Set<JobStatus>([
+  'DRAFT',
+  'PUBLISHED',
+  'PAUSED',
+  'CLOSED',
+  'MODERATION_HOLD',
+]);
 
 export async function GET(
   req: NextRequest,
@@ -39,7 +66,10 @@ export async function GET(
     user?.role !== 'ADMIN' &&
     user?.companyId !== job.companyId
   ) {
-    return NextResponse.json({ error: 'This job is not currently accepting public views.' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'This job is not currently accepting public views.' },
+      { status: 403 }
+    );
   }
 
   // Increment view count for candidates & public visitors
@@ -69,6 +99,16 @@ export async function GET(
             jobId: job.id,
             candidateProfileId: user.candidateProfileId,
           },
+        },
+        select: {
+          id: true,
+          jobId: true,
+          candidateProfileId: true,
+          status: true,
+          appliedAt: true,
+          updatedAt: true,
+          candidateFeedback: true,
+          rejectionReason: true,
         },
       }),
       prisma.candidateProfile.findUnique({
@@ -148,56 +188,195 @@ export async function PUT(
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
+
+    if (body.title !== undefined && sanitizeText(String(body.title)).length < 3) {
+      return NextResponse.json(
+        { error: 'Job title must be at least 3 characters.' },
+        { status: 400 }
+      );
+    }
+    if (body.description !== undefined && sanitizeText(String(body.description)).length < 20) {
+      return NextResponse.json(
+        { error: 'Job description must be at least 20 characters.' },
+        { status: 400 }
+      );
+    }
+    if (body.location !== undefined && sanitizeText(String(body.location)).length < 2) {
+      return NextResponse.json({ error: 'Valid location is required.' }, { status: 400 });
+    }
+    if (
+      body.experienceLevel !== undefined &&
+      !VALID_EXPERIENCE_LEVELS.has(body.experienceLevel as ExperienceLevel)
+    ) {
+      return NextResponse.json({ error: 'Invalid experienceLevel.' }, { status: 400 });
+    }
+    if (
+      body.employmentType !== undefined &&
+      !VALID_EMPLOYMENT_TYPES.has(body.employmentType as EmploymentType)
+    ) {
+      return NextResponse.json({ error: 'Invalid employmentType.' }, { status: 400 });
+    }
+    if (body.workMode !== undefined && !VALID_WORK_MODES.has(body.workMode as WorkMode)) {
+      return NextResponse.json({ error: 'Invalid workMode.' }, { status: 400 });
+    }
+
+    if (body.status !== undefined) {
+      const allowedSet =
+        auth.user.role === 'ADMIN' ? ADMIN_JOB_STATUSES : RECRUITER_JOB_STATUSES;
+      if (!allowedSet.has(body.status as JobStatus)) {
+        return NextResponse.json(
+          { error: 'Invalid or unauthorized job status transition.' },
+          { status: auth.user.role === 'RECRUITER' && body.status === 'MODERATION_HOLD' ? 403 : 400 }
+        );
+      }
+      // Security: Recruiters cannot lift an administrator MODERATION_HOLD themselves
+      if (
+        auth.user.role === 'RECRUITER' &&
+        job.status === 'MODERATION_HOLD' &&
+        body.status !== 'MODERATION_HOLD'
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This job is under administrator moderation hold and can only be restored by an administrator.',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const nextHumanApproved =
+      typeof body.humanApproved === 'boolean' ? body.humanApproved : job.humanApproved;
+    const nextStatus = (body.status as JobStatus | undefined) ?? job.status;
+    if (job.aiGenerated && nextStatus === 'PUBLISHED' && !nextHumanApproved) {
+      const settings = await getPlatformSettings();
+      if (settings.requireHumanApprovalForAIJobs) {
+        return NextResponse.json(
+          {
+            error:
+              'Human review and approval is mandatory before publishing an AI-generated job description.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const nextSalaryMin =
+      body.salaryMin !== undefined
+        ? body.salaryMin !== null && body.salaryMin !== ''
+          ? Number(body.salaryMin)
+          : null
+        : job.salaryMin;
+    const nextSalaryMax =
+      body.salaryMax !== undefined
+        ? body.salaryMax !== null && body.salaryMax !== ''
+          ? Number(body.salaryMax)
+          : null
+        : job.salaryMax;
+
+    if (
+      (nextSalaryMin !== null && (!Number.isFinite(nextSalaryMin) || nextSalaryMin < 0)) ||
+      (nextSalaryMax !== null && (!Number.isFinite(nextSalaryMax) || nextSalaryMax < 0))
+    ) {
+      return NextResponse.json({ error: 'Salary values must be non-negative numbers.' }, { status: 400 });
+    }
+    if (nextSalaryMin !== null && nextSalaryMax !== null && nextSalaryMax < nextSalaryMin) {
+      return NextResponse.json(
+        { error: 'Maximum salary must be greater than or equal to minimum salary.' },
+        { status: 400 }
+      );
+    }
+
+    let nextMinYears: number | undefined;
+    if (body.minYearsExperience !== undefined) {
+      const parsedMin = Number(body.minYearsExperience);
+      if (!Number.isFinite(parsedMin) || parsedMin < 0 || parsedMin > 30) {
+        return NextResponse.json(
+          { error: 'minYearsExperience must be between 0 and 30.' },
+          { status: 400 }
+        );
+      }
+      nextMinYears = Math.round(parsedMin);
+    }
+
+    let nextDeadline: Date | null | undefined = undefined;
+    if (body.deadline !== undefined) {
+      if (!body.deadline) {
+        nextDeadline = null;
+      } else {
+        const parsedDate = parseValidDate(body.deadline);
+        if (!parsedDate) {
+          return NextResponse.json({ error: 'Invalid deadline date.' }, { status: 400 });
+        }
+        nextDeadline = parsedDate;
+      }
+    }
+
     const updated = await prisma.job.update({
       where: { id: job.id },
       data: {
-        ...(body.title ? { title: sanitizeText(body.title) } : {}),
-        ...(body.description ? { description: sanitizeText(body.description) } : {}),
+        ...(body.title ? { title: sanitizeText(String(body.title)).slice(0, 140) } : {}),
+        ...(body.description ? { description: sanitizeText(String(body.description)) } : {}),
         ...(Array.isArray(body.responsibilities)
-          ? { responsibilities: body.responsibilities.map(sanitizeText) }
+          ? { responsibilities: body.responsibilities.map((r: string) => sanitizeText(String(r))) }
           : {}),
         ...(Array.isArray(body.qualifications)
-          ? { qualifications: body.qualifications.map(sanitizeText) }
+          ? { qualifications: body.qualifications.map((q: string) => sanitizeText(String(q))) }
           : {}),
         ...(Array.isArray(body.preferredQualifications)
-          ? { preferredQualifications: body.preferredQualifications.map(sanitizeText) }
+          ? {
+              preferredQualifications: body.preferredQualifications.map((p: string) =>
+                sanitizeText(String(p))
+              ),
+            }
           : {}),
         ...(Array.isArray(body.benefits)
-          ? { benefits: body.benefits.map(sanitizeText) }
+          ? { benefits: body.benefits.map((b: string) => sanitizeText(String(b))) }
           : {}),
         ...(Array.isArray(body.softSkills)
-          ? { softSkills: body.softSkills.map(sanitizeText) }
+          ? { softSkills: body.softSkills.map((s: string) => sanitizeText(String(s))) }
           : {}),
         ...(body.experienceLevel
           ? { experienceLevel: body.experienceLevel as ExperienceLevel }
           : {}),
-        ...(body.minYearsExperience !== undefined
-          ? { minYearsExperience: Number(body.minYearsExperience) }
-          : {}),
+        ...(nextMinYears !== undefined ? { minYearsExperience: nextMinYears } : {}),
         ...(body.educationRequirement !== undefined
           ? {
               educationRequirement: body.educationRequirement
-                ? sanitizeText(body.educationRequirement)
+                ? sanitizeText(String(body.educationRequirement))
                 : null,
             }
           : {}),
         ...(body.employmentType
           ? { employmentType: body.employmentType as EmploymentType }
           : {}),
-        ...(body.location ? { location: sanitizeText(body.location) } : {}),
+        ...(body.location ? { location: sanitizeText(String(body.location)).slice(0, 140) } : {}),
         ...(body.workMode ? { workMode: body.workMode as WorkMode } : {}),
         ...(body.salaryMin !== undefined
-          ? { salaryMin: body.salaryMin ? Number(body.salaryMin) : null }
+          ? { salaryMin: nextSalaryMin !== null ? Math.round(nextSalaryMin) : null }
           : {}),
         ...(body.salaryMax !== undefined
-          ? { salaryMax: body.salaryMax ? Number(body.salaryMax) : null }
+          ? { salaryMax: nextSalaryMax !== null ? Math.round(nextSalaryMax) : null }
           : {}),
         ...(Array.isArray(body.requiredLanguages)
-          ? { requiredLanguages: body.requiredLanguages.map(sanitizeText) }
+          ? { requiredLanguages: body.requiredLanguages.map((l: string) => sanitizeText(String(l))) }
           : {}),
-        ...(body.status
+        ...(typeof body.humanApproved === 'boolean'
+          ? { humanApproved: body.humanApproved }
+          : {}),
+        ...(body.status && job.status !== 'MODERATION_HOLD'
+          ? {
+              status: body.status as JobStatus,
+              ...(body.status === 'PUBLISHED' && !job.publishedAt
+                ? { publishedAt: new Date() }
+                : {}),
+            }
+          : auth.user.role === 'ADMIN' && body.status
           ? {
               status: body.status as JobStatus,
               ...(body.status === 'PUBLISHED' && !job.publishedAt
@@ -205,16 +384,14 @@ export async function PUT(
                 : {}),
             }
           : {}),
-        ...(body.moderationNote !== undefined
+        ...(auth.user.role === 'ADMIN' && body.moderationNote !== undefined
           ? {
               moderationNote: body.moderationNote
-                ? sanitizeText(body.moderationNote)
+                ? sanitizeText(String(body.moderationNote))
                 : null,
             }
           : {}),
-        ...(body.deadline !== undefined
-          ? { deadline: body.deadline ? new Date(body.deadline) : null }
-          : {}),
+        ...(nextDeadline !== undefined ? { deadline: nextDeadline } : {}),
       },
     });
 

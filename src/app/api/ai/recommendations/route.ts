@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 import { computeCandidateJobMatch } from '@/lib/ai/engine';
 import { getActiveAIModelInfo } from '@/lib/ai/llm-client';
 import { logAIUsage } from '@/lib/audit';
@@ -145,7 +146,10 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
-  const { dismissJobId, resetDismissed } = await req.json();
+  const json = await parseJsonBody<{ dismissJobId?: string; resetDismissed?: boolean }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
+  const { dismissJobId, resetDismissed } = json.data;
   const profile = await prisma.candidateProfile.findUnique({
     where: { userId: auth.user.id },
   });

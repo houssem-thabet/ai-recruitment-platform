@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Trash2, KeyRound } from 'lucide-react';
 import { Button, Card, Input, Modal } from '@/components/ui/primitives';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -17,6 +17,14 @@ export function AccountSettingsPanel() {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setPhone(user.phone || '');
+    }
+  }, [user]);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -131,7 +139,7 @@ export function AccountSettingsPanel() {
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
             <Input
-              label="New Password (8+ chars, Upper + Number)"
+              label="New Password (8+ chars, Upper + Lower + Number)"
               type="password"
               required
               value={newPassword}

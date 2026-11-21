@@ -31,7 +31,7 @@ import {
   PremiumChartTooltip,
   PageLoader,
 } from '@/components/ui/primitives';
-import { apiFetch, getStoredToken } from '@/lib/api-client';
+import { apiDownload, apiFetch } from '@/lib/api-client';
 import { useToast } from '@/components/providers/ToastProvider';
 
 const PIE_COLORS = ['#367BF5', '#28C5D8', '#101B35', '#10B981', '#F59E0B', '#EF4444'];
@@ -59,22 +59,15 @@ export default function RecruiterAnalyticsPage() {
   }, [loadAnalytics]);
 
   const exportCsv = async () => {
-    const token = getStoredToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`/api/recruiter/analytics?range=${range}&format=csv`, {
-      headers,
-      credentials: 'include',
-    });
-    const csvText = await res.text();
-    const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `talentai-analytics-${range}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Analytics report exported!');
+    try {
+      await apiDownload(
+        `/api/recruiter/analytics?range=${range}&format=csv`,
+        `talentai-analytics-${range}.csv`
+      );
+      toast.success('Analytics report exported!');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (

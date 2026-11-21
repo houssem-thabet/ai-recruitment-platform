@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/validators';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -24,7 +25,10 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
 
-  const body = await req.json();
+  const json = await parseJsonBody<{ markAllRead?: boolean; notificationId?: string }>(req);
+  if (json.errorResponse) return json.errorResponse;
+
+  const body = json.data;
   if (body.markAllRead) {
     await prisma.notification.updateMany({
       where: { userId: auth.user.id, isRead: false },
@@ -33,9 +37,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ message: 'All notifications marked as read.' });
   }
 
-  if (body.notificationId) {
+  if (typeof body.notificationId === 'string' && body.notificationId.trim()) {
     await prisma.notification.updateMany({
-      where: { id: body.notificationId, userId: auth.user.id },
+      where: { id: body.notificationId.trim(), userId: auth.user.id },
       data: { isRead: true },
     });
     return NextResponse.json({ message: 'Notification marked as read.' });

@@ -95,7 +95,7 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
             .split('\n')
             .map((s) => s.trim())
             .filter(Boolean),
-          status: form.status,
+          ...(form.status !== 'MODERATION_HOLD' ? { status: form.status } : {}),
         }),
       });
       toast.success('Job advertisement updated!');
@@ -137,8 +137,12 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
               <Select
                 label="Status"
                 value={form.status}
+                disabled={form.status === 'MODERATION_HOLD'}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
               >
+                {form.status === 'MODERATION_HOLD' && (
+                  <option value="MODERATION_HOLD">Moderation Hold (Admin Only)</option>
+                )}
                 <option value="PUBLISHED">Published</option>
                 <option value="PAUSED">Paused</option>
                 <option value="CLOSED">Closed</option>

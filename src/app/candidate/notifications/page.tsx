@@ -1,19 +1,30 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Bell, CheckCheck, MessageSquare } from 'lucide-react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import { MessagingWorkspace } from '@/components/messaging/MessagingWorkspace';
-import { Button, Card, Badge, EmptyState } from '@/components/ui/primitives';
+import { Button, Card, Badge, EmptyState, PageLoader } from '@/components/ui/primitives';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { timeAgo } from '@/lib/utils';
 
-export default function CandidateNotificationsPage() {
+function CandidateNotificationsContent() {
+  const searchParams = useSearchParams();
+  const deepConvId = searchParams.get('c');
   const { refreshAuth } = useAuth();
-  const [tab, setTab] = useState<'notifications' | 'messages'>('notifications');
+  const [tab, setTab] = useState<'notifications' | 'messages'>(
+    deepConvId ? 'messages' : 'notifications'
+  );
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (deepConvId) {
+      setTab('messages');
+    }
+  }, [deepConvId]);
 
   const loadNotifs = async () => {
     const d = await apiFetch('/api/notifications');
@@ -31,6 +42,17 @@ export default function CandidateNotificationsPage() {
     });
     await loadNotifs();
     await refreshAuth();
+  };
+
+  const markSingleRead = async (notificationId: string) => {
+    await apiFetch('/api/notifications', {
+      method: 'PUT',
+      body: JSON.stringify({ notificationId }),
+    }).catch(() => null);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n))
+    );
+    refreshAuth();
   };
 
   return (
@@ -64,7 +86,7 @@ export default function CandidateNotificationsPage() {
       </div>
 
       {tab === 'messages' ? (
-        <MessagingWorkspace />
+        <MessagingWorkspace initialConversationId={deepConvId} />
       ) : notifications.length === 0 ? (
         <EmptyState
           icon={<Bell className="w-6 h-6" />}
@@ -91,7 +113,7 @@ export default function CandidateNotificationsPage() {
                 <p className="text-[11px] text-slate-400">{timeAgo(n.createdAt)}</p>
               </div>
               {n.link && (
-                <Link href={n.link}>
+                <Link href={n.link} onClick={() => !n.isRead && markSingleRead(n.id)}>
                   <Button variant="outline" size="sm">
                     Open
                   </Button>
@@ -102,5 +124,13 @@ export default function CandidateNotificationsPage() {
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+export default function CandidateNotificationsPage() {
+  return (
+    <Suspense fallback={<PageLoader label="Loading notifications..." />}>
+      <CandidateNotificationsContent />
+    </Suspense>
   );
 }

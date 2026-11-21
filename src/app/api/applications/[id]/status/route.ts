@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { applicationStatusUpdateSchema } from '@/lib/validators';
+import { applicationStatusUpdateSchema, parseJsonBody } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
 import { createNotification, logAudit } from '@/lib/audit';
 
@@ -25,8 +25,11 @@ export async function PUT(
     return NextResponse.json({ error: 'Application not found.' }, { status: 404 });
   }
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = applicationStatusUpdateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -139,7 +142,10 @@ export async function PUT(
 
     return NextResponse.json({
       message: 'Application updated successfully',
-      application: updated,
+      application:
+        auth.user.role === 'CANDIDATE'
+          ? { ...updated, privateNotes: undefined }
+          : updated,
     });
   } catch (err) {
     console.error('[PUT /api/applications/[id]/status]', err);

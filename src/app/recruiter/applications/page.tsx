@@ -25,7 +25,7 @@ import {
   PageLoader,
   EmptyState,
 } from '@/components/ui/primitives';
-import { apiFetch, getStoredToken } from '@/lib/api-client';
+import { apiDownload, apiFetch } from '@/lib/api-client';
 import { useToast } from '@/components/providers/ToastProvider';
 import { formatDate } from '@/lib/utils';
 
@@ -179,22 +179,15 @@ function RecruiterApplicationsContent() {
   };
 
   const handleExportCsv = async () => {
-    const token = getStoredToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch('/api/applications?format=csv', {
-      headers,
-      credentials: 'include',
-    });
-    const csvText = await res.text();
-    const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'talentai-candidates-export.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Exported candidate list to CSV!');
+    try {
+      await apiDownload(
+        '/api/applications?format=csv',
+        'talentai-candidates-export.csv'
+      );
+      toast.success('Exported candidate list to CSV!');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (
@@ -405,15 +398,19 @@ function RecruiterApplicationsContent() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedApp.candidateProfile.cvDocuments?.[0] && (
-                  <a
-                    href={`/api/candidates/cv/${selectedApp.candidateProfile.cvDocuments[0].id}?download=1`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      apiDownload(
+                        `/api/candidates/cv/${selectedApp.candidateProfile.cvDocuments[0].id}?download=1`,
+                        selectedApp.candidateProfile.cvDocuments[0].originalName ||
+                          'applicant-cv.pdf'
+                      ).catch((err) => toast.error(err.message))
+                    }
                   >
-                    <Button variant="outline" size="sm">
-                      <FileText className="w-3.5 h-3.5" /> View CV
-                    </Button>
-                  </a>
+                    <FileText className="w-3.5 h-3.5" /> View CV
+                  </Button>
                 )}
                 <Button
                   variant="outline"

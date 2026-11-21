@@ -3,6 +3,9 @@ import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { AccountStatus, Prisma, Role } from '@prisma/client';
 
+const VALID_ROLES = new Set<Role>(['CANDIDATE', 'RECRUITER', 'ADMIN']);
+const VALID_ACCOUNT_STATUSES = new Set<AccountStatus>(['ACTIVE', 'SUSPENDED', 'PENDING']);
+
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN']);
   if (auth.errorResponse) return auth.errorResponse;
@@ -11,6 +14,13 @@ export async function GET(req: NextRequest) {
   const role = searchParams.get('role');
   const status = searchParams.get('status');
   const q = (searchParams.get('q') || '').trim();
+
+  if (role && !VALID_ROLES.has(role as Role)) {
+    return NextResponse.json({ error: 'Invalid role filter.' }, { status: 400 });
+  }
+  if (status && !VALID_ACCOUNT_STATUSES.has(status as AccountStatus)) {
+    return NextResponse.json({ error: 'Invalid status filter.' }, { status: 400 });
+  }
 
   const where: Prisma.UserWhereInput = {
     ...(role ? { role: role as Role } : {}),

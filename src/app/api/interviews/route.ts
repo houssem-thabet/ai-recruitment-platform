@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { interviewCreateSchema } from '@/lib/validators';
+import { interviewCreateSchema, parseJsonBody } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
 import { createNotification, logAudit } from '@/lib/audit';
 
@@ -50,8 +50,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = interviewCreateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

@@ -36,18 +36,22 @@ export default function AdminJobsModerationPage() {
 
   const submitModeration = async () => {
     if (!selectedJob) return;
-    await apiFetch('/api/admin/jobs', {
-      method: 'PUT',
-      body: JSON.stringify({
-        jobId: selectedJob.id,
-        status: targetStatus,
-        moderationNote,
-      }),
-    });
-    toast.success(`Job status updated to ${targetStatus}.`);
-    setSelectedJob(null);
-    setModerationNote('');
-    load();
+    try {
+      await apiFetch('/api/admin/jobs', {
+        method: 'PUT',
+        body: JSON.stringify({
+          jobId: selectedJob.id,
+          status: targetStatus,
+          moderationNote,
+        }),
+      });
+      toast.success(`Job status updated to ${targetStatus}.`);
+      setSelectedJob(null);
+      setModerationNote('');
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (

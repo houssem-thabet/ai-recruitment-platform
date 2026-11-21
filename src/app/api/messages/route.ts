@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { messageSendSchema } from '@/lib/validators';
+import { messageSendSchema, parseJsonBody } from '@/lib/validators';
 import { sanitizeText } from '@/lib/utils';
 import { createNotification } from '@/lib/audit';
 
@@ -86,8 +86,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE', 'RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const parsed = messageSendSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -100,6 +103,10 @@ export async function POST(req: NextRequest) {
     let conversation = d.conversationId
       ? await prisma.conversation.findUnique({ where: { id: d.conversationId } })
       : null;
+
+    if (d.conversationId && !conversation) {
+      return NextResponse.json({ error: 'Conversation not found.' }, { status: 404 });
+    }
 
     if (conversation) {
       if (
@@ -115,11 +122,42 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+      if (d.recipientUserId === auth.user.id) {
+        return NextResponse.json(
+          { error: 'Cannot start a conversation with yourself.' },
+          { status: 400 }
+        );
+      }
+
       const recipient = await prisma.user.findUnique({
         where: { id: d.recipientUserId },
       });
-      if (!recipient) {
-        return NextResponse.json({ error: 'Recipient not found.' }, { status: 404 });
+      if (!recipient || recipient.status !== 'ACTIVE') {
+        return NextResponse.json({ error: 'Recipient not found or inactive.' }, { status: 404 });
+      }
+
+      // Enforce Candidate <-> Recruiter role pairing integrity
+      const expectedRecipientRole =
+        auth.user.role === 'CANDIDATE' ? 'RECRUITER' : 'CANDIDATE';
+      if (recipient.role !== expectedRecipientRole) {
+        return NextResponse.json(
+          {
+            error: `Direct messaging is strictly between Candidates and Recruiters.`,
+          },
+          { status: 403 }
+        );
+      }
+
+      let validJobId: string | null = null;
+      if (d.jobId) {
+        const jobRow = await prisma.job.findUnique({
+          where: { id: d.jobId },
+          select: { id: true },
+        });
+        if (!jobRow) {
+          return NextResponse.json({ error: 'Referenced job not found.' }, { status: 404 });
+        }
+        validJobId = jobRow.id;
       }
 
       const candidateUserId =
@@ -131,7 +169,7 @@ export async function POST(req: NextRequest) {
         where: {
           candidateUserId,
           recruiterUserId,
-          ...(d.jobId ? { jobId: d.jobId } : {}),
+          ...(validJobId ? { jobId: validJobId } : {}),
         },
       });
 
@@ -140,7 +178,7 @@ export async function POST(req: NextRequest) {
           data: {
             candidateUserId,
             recruiterUserId,
-            jobId: d.jobId || null,
+            jobId: validJobId,
             subject: d.subject ? sanitizeText(d.subject) : 'Recruitment Discussion',
           },
         });

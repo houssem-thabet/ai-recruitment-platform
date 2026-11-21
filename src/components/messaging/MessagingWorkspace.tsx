@@ -1,22 +1,36 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Send, MessageSquare, CheckCheck } from 'lucide-react';
-import { Button, Card, EmptyState, Input } from '@/components/ui/primitives';
+import { Button, Card, EmptyState, Input, PageLoader } from '@/components/ui/primitives';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useToast } from '@/components/providers/ToastProvider';
 import { formatDateTime, timeAgo } from '@/lib/utils';
 
-export function MessagingWorkspace() {
+function MessagingWorkspaceInner({
+  initialConversationId,
+}: {
+  initialConversationId?: string | null;
+}) {
+  const searchParams = useSearchParams();
+  const queryConvId = searchParams.get('c') || initialConversationId || null;
+
   const { user, refreshAuth } = useAuth();
   const toast = useToast();
 
   const [conversations, setConversations] = useState<any[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(queryConvId);
   const [messages, setMessages] = useState<any[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (queryConvId) {
+      setSelectedId(queryConvId);
+    }
+  }, [queryConvId]);
 
   const loadConversations = useCallback(
     async (convId?: string | null) => {
@@ -188,5 +202,17 @@ export function MessagingWorkspace() {
         </form>
       </div>
     </Card>
+  );
+}
+
+export function MessagingWorkspace({
+  initialConversationId,
+}: {
+  initialConversationId?: string | null;
+}) {
+  return (
+    <Suspense fallback={<PageLoader label="Loading conversations..." />}>
+      <MessagingWorkspaceInner initialConversationId={initialConversationId} />
+    </Suspense>
   );
 }

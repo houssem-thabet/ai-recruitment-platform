@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { sanitizeText } from '@/lib/utils';
+import { parseValidDate, sanitizeHttpUrl, sanitizeText } from '@/lib/utils';
+import { parseJsonBody } from '@/lib/validators';
 import { upsertSkillRecord } from '@/lib/skills-db';
 import { SkillLevel, WorkMode } from '@prisma/client';
 import { logAudit } from '@/lib/audit';
+
+const VALID_WORK_MODES = new Set<WorkMode>(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE']);
+const VALID_SKILL_LEVELS = new Set<SkillLevel>([
+  'BEGINNER',
+  'INTERMEDIATE',
+  'ADVANCED',
+  'EXPERT',
+]);
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
@@ -37,8 +46,11 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const profile = await prisma.candidateProfile.findUnique({
       where: { userId: auth.user.id },
     });
@@ -46,55 +58,114 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    if (
+      body.remotePreference !== undefined &&
+      body.remotePreference !== '' &&
+      !VALID_WORK_MODES.has(body.remotePreference as WorkMode)
+    ) {
+      return NextResponse.json({ error: 'Invalid remotePreference value.' }, { status: 400 });
+    }
+
+    for (const urlField of ['linkedinUrl', 'githubUrl', 'portfolioUrl'] as const) {
+      if (body[urlField] && sanitizeHttpUrl(body[urlField]) === null) {
+        return NextResponse.json(
+          { error: `Invalid ${urlField}. Please enter a valid HTTP/HTTPS URL.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const nextSalaryMin =
+      body.desiredSalaryMin !== undefined
+        ? body.desiredSalaryMin !== null && body.desiredSalaryMin !== ''
+          ? Number(body.desiredSalaryMin)
+          : null
+        : profile.desiredSalaryMin;
+    const nextSalaryMax =
+      body.desiredSalaryMax !== undefined
+        ? body.desiredSalaryMax !== null && body.desiredSalaryMax !== ''
+          ? Number(body.desiredSalaryMax)
+          : null
+        : profile.desiredSalaryMax;
+
+    if (
+      (nextSalaryMin !== null && (!Number.isFinite(nextSalaryMin) || nextSalaryMin < 0)) ||
+      (nextSalaryMax !== null && (!Number.isFinite(nextSalaryMax) || nextSalaryMax < 0))
+    ) {
+      return NextResponse.json({ error: 'Desired salary must be non-negative.' }, { status: 400 });
+    }
+    if (nextSalaryMin !== null && nextSalaryMax !== null && nextSalaryMax < nextSalaryMin) {
+      return NextResponse.json(
+        { error: 'Desired maximum salary must be >= desired minimum salary.' },
+        { status: 400 }
+      );
+    }
+
     // Update basic user fields if provided
     if (body.firstName || body.lastName || body.phone !== undefined) {
       await prisma.user.update({
         where: { id: auth.user.id },
         data: {
-          ...(body.firstName ? { firstName: sanitizeText(body.firstName) } : {}),
-          ...(body.lastName ? { lastName: sanitizeText(body.lastName) } : {}),
+          ...(body.firstName ? { firstName: sanitizeText(String(body.firstName)).slice(0, 80) } : {}),
+          ...(body.lastName ? { lastName: sanitizeText(String(body.lastName)).slice(0, 80) } : {}),
           ...(body.phone !== undefined
-            ? { phone: body.phone ? sanitizeText(body.phone) : null }
+            ? { phone: body.phone ? sanitizeText(String(body.phone)).slice(0, 30) : null }
             : {}),
         },
       });
     }
 
+    const parsedExp =
+      body.yearsOfExperience !== undefined
+        ? Math.min(60, Math.max(0, Number(body.yearsOfExperience) || 0))
+        : undefined;
+
     // Update CandidateProfile scalar fields
     await prisma.candidateProfile.update({
       where: { id: profile.id },
       data: {
-        ...(body.headline !== undefined ? { headline: sanitizeText(body.headline) } : {}),
-        ...(body.bio !== undefined ? { bio: sanitizeText(body.bio) } : {}),
-        ...(body.location !== undefined ? { location: sanitizeText(body.location) } : {}),
-        ...(body.yearsOfExperience !== undefined
-          ? { yearsOfExperience: Math.max(0, Number(body.yearsOfExperience) || 0) }
-          : {}),
+        ...(body.headline !== undefined ? { headline: sanitizeText(String(body.headline)).slice(0, 180) } : {}),
+        ...(body.bio !== undefined ? { bio: sanitizeText(String(body.bio)).slice(0, 5000) } : {}),
+        ...(body.location !== undefined ? { location: sanitizeText(String(body.location)).slice(0, 140) } : {}),
+        ...(parsedExp !== undefined ? { yearsOfExperience: parsedExp } : {}),
         ...(body.desiredTitle !== undefined
-          ? { desiredTitle: sanitizeText(body.desiredTitle) }
+          ? { desiredTitle: sanitizeText(String(body.desiredTitle)).slice(0, 140) }
           : {}),
         ...(body.desiredSalaryMin !== undefined
-          ? { desiredSalaryMin: body.desiredSalaryMin ? Number(body.desiredSalaryMin) : null }
+          ? { desiredSalaryMin: nextSalaryMin !== null ? Math.round(nextSalaryMin) : null }
           : {}),
         ...(body.desiredSalaryMax !== undefined
-          ? { desiredSalaryMax: body.desiredSalaryMax ? Number(body.desiredSalaryMax) : null }
+          ? { desiredSalaryMax: nextSalaryMax !== null ? Math.round(nextSalaryMax) : null }
           : {}),
         ...(body.remotePreference
           ? { remotePreference: body.remotePreference as WorkMode }
           : {}),
         ...(body.linkedinUrl !== undefined
-          ? { linkedinUrl: sanitizeText(body.linkedinUrl) || null }
+          ? { linkedinUrl: sanitizeHttpUrl(body.linkedinUrl) }
           : {}),
         ...(body.githubUrl !== undefined
-          ? { githubUrl: sanitizeText(body.githubUrl) || null }
+          ? { githubUrl: sanitizeHttpUrl(body.githubUrl) }
           : {}),
         ...(body.portfolioUrl !== undefined
-          ? { portfolioUrl: sanitizeText(body.portfolioUrl) || null }
+          ? { portfolioUrl: sanitizeHttpUrl(body.portfolioUrl) }
           : {}),
         ...(Array.isArray(body.careerInterests)
-          ? { careerInterests: body.careerInterests.map((c: string) => sanitizeText(c)).filter(Boolean) }
+          ? {
+              careerInterests: body.careerInterests
+                .map((c: string) => sanitizeText(String(c)))
+                .filter(Boolean),
+            }
           : {}),
-        ...(Array.isArray(body.languages) ? { languages: body.languages } : {}),
+        ...(Array.isArray(body.languages)
+          ? {
+              languages: body.languages
+                .filter((l: any) => l && typeof l === 'object' && l.name)
+                .map((l: any) => ({
+                  name: sanitizeText(String(l.name)).slice(0, 60),
+                  proficiency: sanitizeText(String(l.proficiency || 'Fluent')).slice(0, 40),
+                })),
+            }
+          : {}),
         ...(typeof body.isSearchableByRecruiters === 'boolean'
           ? { isSearchableByRecruiters: body.isSearchableByRecruiters }
           : {}),
@@ -114,12 +185,18 @@ export async function PUT(req: NextRequest) {
         const skillRow = await upsertSkillRecord(String(name), category);
         if (seenSkillIds.has(skillRow.id)) continue;
         seenSkillIds.add(skillRow.id);
+        const levelCandidate = (typeof s === 'object' && s?.level ? s.level : 'INTERMEDIATE') as SkillLevel;
+        const level = VALID_SKILL_LEVELS.has(levelCandidate) ? levelCandidate : 'INTERMEDIATE';
+        const yearsUsedNum =
+          typeof s === 'object' && s?.yearsUsed !== undefined && s?.yearsUsed !== null
+            ? Number(s.yearsUsed)
+            : NaN;
         await prisma.candidateSkill.create({
           data: {
             candidateProfileId: profile.id,
             skillId: skillRow.id,
-            level: (s?.level as SkillLevel) || 'INTERMEDIATE',
-            yearsUsed: s?.yearsUsed ? Number(s.yearsUsed) : null,
+            level,
+            yearsUsed: Number.isFinite(yearsUsedNum) && yearsUsedNum >= 0 ? yearsUsedNum : null,
           },
         });
       }
@@ -133,14 +210,14 @@ export async function PUT(req: NextRequest) {
         await prisma.education.create({
           data: {
             candidateProfileId: profile.id,
-            institution: sanitizeText(edu.institution),
-            degree: sanitizeText(edu.degree),
-            fieldOfStudy: sanitizeText(edu.fieldOfStudy || 'General Studies'),
-            startDate: edu.startDate ? new Date(edu.startDate) : null,
-            endDate: edu.endDate ? new Date(edu.endDate) : null,
+            institution: sanitizeText(String(edu.institution)),
+            degree: sanitizeText(String(edu.degree)),
+            fieldOfStudy: sanitizeText(String(edu.fieldOfStudy || 'General Studies')),
+            startDate: parseValidDate(edu.startDate),
+            endDate: parseValidDate(edu.endDate),
             current: Boolean(edu.current),
-            grade: edu.grade ? sanitizeText(edu.grade) : null,
-            description: edu.description ? sanitizeText(edu.description) : null,
+            grade: edu.grade ? sanitizeText(String(edu.grade)) : null,
+            description: edu.description ? sanitizeText(String(edu.description)) : null,
           },
         });
       }
@@ -154,16 +231,16 @@ export async function PUT(req: NextRequest) {
         await prisma.experience.create({
           data: {
             candidateProfileId: profile.id,
-            company: sanitizeText(exp.company),
-            title: sanitizeText(exp.title),
-            location: exp.location ? sanitizeText(exp.location) : null,
-            employmentType: exp.employmentType ? sanitizeText(exp.employmentType) : 'Full-Time',
-            startDate: exp.startDate ? new Date(exp.startDate) : new Date('2023-01-01'),
-            endDate: exp.endDate ? new Date(exp.endDate) : null,
+            company: sanitizeText(String(exp.company)),
+            title: sanitizeText(String(exp.title)),
+            location: exp.location ? sanitizeText(String(exp.location)) : null,
+            employmentType: exp.employmentType ? sanitizeText(String(exp.employmentType)) : 'Full-Time',
+            startDate: parseValidDate(exp.startDate) || new Date('2023-01-01T00:00:00.000Z'),
+            endDate: parseValidDate(exp.endDate),
             current: Boolean(exp.current),
-            description: sanitizeText(exp.description || ''),
+            description: sanitizeText(String(exp.description || '')),
             achievements: Array.isArray(exp.achievements)
-              ? exp.achievements.map((a: string) => sanitizeText(a)).filter(Boolean)
+              ? exp.achievements.map((a: string) => sanitizeText(String(a))).filter(Boolean)
               : [],
           },
         });
@@ -178,11 +255,11 @@ export async function PUT(req: NextRequest) {
         await prisma.certification.create({
           data: {
             candidateProfileId: profile.id,
-            name: sanitizeText(cert.name),
-            issuer: sanitizeText(cert.issuer),
-            issueDate: cert.issueDate ? new Date(cert.issueDate) : null,
-            credentialId: cert.credentialId ? sanitizeText(cert.credentialId) : null,
-            credentialUrl: cert.credentialUrl ? sanitizeText(cert.credentialUrl) : null,
+            name: sanitizeText(String(cert.name)),
+            issuer: sanitizeText(String(cert.issuer)),
+            issueDate: parseValidDate(cert.issueDate),
+            credentialId: cert.credentialId ? sanitizeText(String(cert.credentialId)) : null,
+            credentialUrl: sanitizeHttpUrl(cert.credentialUrl),
           },
         });
       }
@@ -196,13 +273,13 @@ export async function PUT(req: NextRequest) {
         await prisma.project.create({
           data: {
             candidateProfileId: profile.id,
-            title: sanitizeText(proj.title),
-            description: sanitizeText(proj.description || ''),
+            title: sanitizeText(String(proj.title)),
+            description: sanitizeText(String(proj.description || '')),
             technologies: Array.isArray(proj.technologies)
-              ? proj.technologies.map((t: string) => sanitizeText(t)).filter(Boolean)
+              ? proj.technologies.map((t: string) => sanitizeText(String(t))).filter(Boolean)
               : [],
-            projectUrl: proj.projectUrl ? sanitizeText(proj.projectUrl) : null,
-            repoUrl: proj.repoUrl ? sanitizeText(proj.repoUrl) : null,
+            projectUrl: sanitizeHttpUrl(proj.projectUrl),
+            repoUrl: sanitizeHttpUrl(proj.repoUrl),
           },
         });
       }

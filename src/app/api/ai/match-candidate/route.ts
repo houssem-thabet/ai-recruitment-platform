@@ -4,6 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import { computeCandidateJobMatch, MatchWeights } from '@/lib/ai/engine';
 import { logAIUsage, logAudit } from '@/lib/audit';
 import { sanitizeText } from '@/lib/utils';
+import { parseJsonBody } from '@/lib/validators';
+import { getPlatformSettings } from '@/lib/platform-settings';
 import { Prisma } from '@prisma/client';
 
 export async function GET(req: NextRequest) {
@@ -17,8 +19,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'jobId query param is required' }, { status: 400 });
   }
 
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, companyId: true, status: true },
+  });
+  if (!job) {
+    return NextResponse.json({ error: 'Job not found.' }, { status: 404 });
+  }
+
+  // Enforce strict RBAC / tenant isolation on match results
+  if (auth.user.role === 'RECRUITER' && job.companyId !== auth.user.companyId) {
+    return NextResponse.json(
+      { error: 'Forbidden: You can only view match rankings for your own company jobs.' },
+      { status: 403 }
+    );
+  }
+
+  const where: Prisma.MatchResultWhereInput = {
+    jobId,
+    ...(auth.user.role === 'CANDIDATE'
+      ? { candidateProfileId: auth.user.candidateProfileId! }
+      : {}),
+  };
+
   const results = await prisma.matchResult.findMany({
-    where: { jobId },
+    where,
     include: {
       candidateProfile: {
         include: {
@@ -32,15 +57,28 @@ export async function GET(req: NextRequest) {
     orderBy: { overallScore: 'desc' },
   });
 
-  return NextResponse.json({ results });
+  // Strip internal recruiter override notes when a Candidate views their own match record
+  const safeResults =
+    auth.user.role === 'CANDIDATE'
+      ? results.map((r) => ({
+          ...r,
+          recruiterOverrideScore: undefined,
+          recruiterOverrideNote: undefined,
+        }))
+      : results;
+
+  return NextResponse.json({ results: safeResults });
 }
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER', 'CANDIDATE']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const body = await req.json();
+    const body = json.data;
     const { jobId, candidateProfileId, weights, scope } = body as {
       jobId: string;
       candidateProfileId?: string;
@@ -245,8 +283,14 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['RECRUITER']);
   if (auth.errorResponse) return auth.errorResponse;
 
+  const json = await parseJsonBody(req);
+  if (json.errorResponse) return json.errorResponse;
+
   try {
-    const { matchResultId, overrideScore, overrideNote } = await req.json();
+    const { matchResultId, overrideScore, overrideNote } = json.data;
+    if (!matchResultId || typeof matchResultId !== 'string') {
+      return NextResponse.json({ error: 'matchResultId is required.' }, { status: 400 });
+    }
     const existing = await prisma.matchResult.findUnique({
       where: { id: matchResultId },
       include: { job: true },
