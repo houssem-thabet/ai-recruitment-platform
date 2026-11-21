@@ -33,10 +33,10 @@
 | **Framework** | Next.js 14.2 (App Router, Full-Stack React 18 + TypeScript) |
 | **Styling & Design System** | Tailwind CSS, Dark/Light Theme Provider, Lucide Icons, Deep Navy (`#101B35`), Electric Blue (`#367BF5`), Cyan (`#28C5D8`) |
 | **Visualizations** | Recharts (Line, Bar, Radar/Comparison, and Pie charts) |
-| **Database & ORM** | PostgreSQL 17 + Prisma ORM v5.22 (26 models, 14 enums, SQL migrations, seed script) |
-| **Authentication & Security** | `bcryptjs` password hashing, `jose` HS256 JWT (`HttpOnly` cookies + `Authorization: Bearer` header support), Edge Middleware RBAC, Zod validation, XSS sanitization, rate limiting, audit logging |
+| **Database & ORM** | PostgreSQL 17 + Prisma ORM v5.22 (20 models, 13 enums, SQL migrations, seed script) |
+| **Authentication & Security** | `bcryptjs` password hashing, `jose` HS256 JWT (`HttpOnly` cookies + `Authorization: Bearer` header support), Edge Middleware RBAC, Zod validation, XSS/URI/CSV sanitization, rate limiting, audit logging |
 | **Document Parsing** | `pdf-parse` (PDF extraction) + `mammoth` (OOXML `.docx` extraction) + binary magic-byte header inspection |
-| **Testing** | Vitest (Automated Unit, Integration, and 20-Workflow Live HTTP End-to-End Test Suite) |
+| **Testing** | Vitest (32 Unit, Integration, Security Audit & Live HTTP E2E tests) + Playwright (4 Headless Chromium Browser E2E specs) |
 | **Containerization** | Multi-stage `Dockerfile` + `docker-compose.yml` (PostgreSQL 17 + App + persistent CV volume) |
 
 ---
@@ -132,8 +132,10 @@ npx tsc --noEmit
 
 ## Documentation Index
 
+- **[`docs/UNIVERSITY_PROJECT_DEFENSE_DOCUMENTATION.md`](./docs/UNIVERSITY_PROJECT_DEFENSE_DOCUMENTATION.md)** — **Complete CS University Project Defense Manual** (15 chapters covering Objectives, FR/NFRs, UML Use-Case, Class & 4 Sequence Diagrams, 20-Table ERD, System Architecture, 3NF Database Design, 43-Route REST API, Sublinear TF-IDF & Hybrid Dense/Lexical NLP Equations, 5-Dimension Matching Math, Security/Privacy Matrix, Testing Pyramid, Limitations, and Oral Viva Q&A).
+- **[`docs/UNIVERSITY_PROJECT_DEFENSE_DOSSIER.html`](./docs/UNIVERSITY_PROJECT_DEFENSE_DOSSIER.html)** — **Self-Contained Visual Defense Dossier** with embedded inline vector SVG UML/ERD/Architecture diagrams and print-to-PDF thesis formatting.
 - [`PROJECT_ARCHITECTURE.md`](./PROJECT_ARCHITECTURE.md) — System design, layered folder structure, auth/session model, and security architecture.
-- [`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md) — Complete 26-model PostgreSQL schema, relationships, indexes, and privacy boundaries.
+- [`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md) — Complete 20-model PostgreSQL schema, relationships, indexes, and privacy boundaries.
 - [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) — Complete REST endpoint catalog, request/response payloads, and RBAC matrix.
 - [`AI_MODULE_DOCUMENTATION.md`](./AI_MODULE_DOCUMENTATION.md) — Detailed technical breakdown of all 8 AI features, scoring equations, dual-mode fallback, and Responsible AI guardrails.
-- [`TESTING.md`](./TESTING.md) — Automated test suite coverage across all 20 QA workflows and verification results.
+- [`TESTING.md`](./TESTING.md) — Automated test suite coverage across Vitest and Playwright Chromium browser verification.
