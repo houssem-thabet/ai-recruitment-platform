@@ -27,7 +27,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src/lib/sample-docx.ts ./src/lib/sample-docx.ts
+COPY --from=builder /app/src/lib ./src/lib
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 RUN mkdir -p /app/storage/cvs
 
