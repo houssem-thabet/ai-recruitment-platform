@@ -12,20 +12,29 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from 'recharts';
-import { Download } from 'lucide-react';
+import {
+  Download,
+  TrendingUp,
+  UserCheck,
+  Award,
+  Clock,
+} from 'lucide-react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import {
   Button,
   Card,
   Select,
   Badge,
+  KPICard,
+  PremiumChartTooltip,
   PageLoader,
 } from '@/components/ui/primitives';
 import { apiFetch, getStoredToken } from '@/lib/api-client';
 import { useToast } from '@/components/providers/ToastProvider';
 
-const PIE_COLORS = ['#367BF5', '#28C5D8', '#6366F1', '#10B981', '#F59E0B', '#EF4444'];
+const PIE_COLORS = ['#367BF5', '#28C5D8', '#101B35', '#10B981', '#F59E0B', '#EF4444'];
 
 export default function RecruiterAnalyticsPage() {
   const toast = useToast();
@@ -71,8 +80,8 @@ export default function RecruiterAnalyticsPage() {
   return (
     <DashboardShell
       role="RECRUITER"
-      title="Recruitment Analytics & Reporting"
-      subtitle="Database-backed funnel conversion metrics, time-to-hire, and skill supply vs. demand"
+      title="Recruitment Funnel Analytics & Reporting"
+      subtitle="Database-backed funnel conversion rates, time-to-hire velocity, and skill supply vs. demand"
       actions={
         <>
           <Select
@@ -95,45 +104,53 @@ export default function RecruiterAnalyticsPage() {
         <PageLoader />
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <Badge variant="cyan">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Badge variant="cyan" dot>
               Computed Live from PostgreSQL Records (Includes Seeded Demo Data)
             </Badge>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Applications / Job Avg', value: data.kpis.applicationsPerJobAvg },
-              {
-                label: 'Interview Conversion',
-                value: `${data.kpis.interviewConversionRate}%`,
-              },
-              {
-                label: 'Hiring Conversion',
-                value: `${data.kpis.hiringConversionRate}%`,
-              },
-              {
-                label: 'Average Time to Hire',
-                value:
-                  data.kpis.averageTimeToHireDays > 0
-                    ? `${data.kpis.averageTimeToHireDays} days`
-                    : '—',
-              },
-            ].map((k) => (
-              <Card key={k.label} className="p-5">
-                <p className="text-xs text-slate-500 font-semibold">{k.label}</p>
-                <p className="text-2xl font-extrabold font-mono text-[#101B35] dark:text-white mt-2">
-                  {k.value}
-                </p>
-              </Card>
-            ))}
+            <KPICard
+              label="Applications / Job Avg"
+              value={data.kpis.applicationsPerJobAvg}
+              icon={TrendingUp}
+              tone="electric"
+            />
+            <KPICard
+              label="Interview Conversion"
+              value={`${data.kpis.interviewConversionRate}%`}
+              icon={UserCheck}
+              tone="cyan"
+            />
+            <KPICard
+              label="Hiring Conversion"
+              value={`${data.kpis.hiringConversionRate}%`}
+              icon={Award}
+              tone="emerald"
+            />
+            <KPICard
+              label="Avg Time to Hire"
+              value={
+                data.kpis.averageTimeToHireDays > 0
+                  ? `${data.kpis.averageTimeToHireDays}d`
+                  : '—'
+              }
+              icon={Clock}
+              tone="navy"
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="p-6 space-y-3">
-              <h3 className="text-base font-bold text-[#101B35] dark:text-white">
-                Application Status Distribution
-              </h3>
+            <Card className="p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-extrabold text-[#101B35] dark:text-white">
+                  Application Status Distribution
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Proportional breakdown across recruitment outcomes
+                </p>
+              </div>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -141,8 +158,10 @@ export default function RecruiterAnalyticsPage() {
                       data={data.statusDistribution}
                       dataKey="value"
                       nameKey="name"
+                      innerRadius={62}
                       outerRadius={95}
-                      label
+                      paddingAngle={3}
+                      stroke="none"
                     >
                       {data.statusDistribution.map((_: any, idx: number) => (
                         <Cell
@@ -151,42 +170,101 @@ export default function RecruiterAnalyticsPage() {
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip content={<PremiumChartTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            <Card className="p-6 space-y-3">
-              <h3 className="text-base font-bold text-[#101B35] dark:text-white">
-                Most Requested Skills in Company Jobs
-              </h3>
+            <Card className="p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-extrabold text-[#101B35] dark:text-white">
+                  Most Requested Skills in Company Roles
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Top technical &amp; domain competencies across open requisitions
+                </p>
+              </div>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.mostRequestedSkills}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="skill" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="demand" name="Jobs Requesting Skill" fill="#367BF5" radius={[6, 6, 0, 0]} />
+                    <defs>
+                      <linearGradient id="skillDemandGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#367BF5" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="#1D58D8" stopOpacity={0.75} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.14} vertical={false} />
+                    <XAxis
+                      dataKey="skill"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fill: '#64748B' }}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11, fill: '#64748B' }}
+                    />
+                    <Tooltip
+                      content={<PremiumChartTooltip />}
+                      cursor={{ fill: 'rgba(54, 123, 245, 0.06)' }}
+                    />
+                    <Bar
+                      dataKey="demand"
+                      name="Jobs Requesting Skill"
+                      fill="url(#skillDemandGrad)"
+                      radius={[7, 7, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Card>
           </div>
 
-          <Card className="p-6 space-y-3">
-            <h3 className="text-base font-bold text-[#101B35] dark:text-white">
-              Platform Candidate Skill Distribution (Supply Overview)
-            </h3>
+          <Card className="p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-extrabold text-[#101B35] dark:text-white">
+                Platform Candidate Skill Supply Overview
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Available verified candidate talent across core skills
+              </p>
+            </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.candidateSkillDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="skill" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Candidates" fill="#28C5D8" radius={[6, 6, 0, 0]} />
+                  <defs>
+                    <linearGradient id="skillSupplyGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#28C5D8" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#367BF5" stopOpacity={0.75} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.14} vertical={false} />
+                  <XAxis
+                    dataKey="skill"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#64748B' }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#64748B' }}
+                  />
+                  <Tooltip
+                    content={<PremiumChartTooltip />}
+                    cursor={{ fill: 'rgba(40, 197, 216, 0.06)' }}
+                  />
+                  <Bar
+                    dataKey="count"
+                    name="Candidates"
+                    fill="url(#skillSupplyGrad)"
+                    radius={[7, 7, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

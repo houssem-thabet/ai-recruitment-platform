@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Sliders, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Sliders, ShieldAlert, CheckCircle2, GitBranch } from 'lucide-react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import {
   Button,
@@ -68,7 +68,9 @@ export default function RecruiterAIMatchingPage() {
         }),
       });
       setResults(res.results || []);
-      toast.success(`Evaluated ${res.results?.length || 0} candidate compatibility profiles!`);
+      toast.success(
+        `Evaluated ${res.results?.length || 0} candidate compatibility profiles!`
+      );
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -99,26 +101,36 @@ export default function RecruiterAIMatchingPage() {
     }
   };
 
+  const weightSum =
+    weights.skills +
+    weights.experience +
+    weights.education +
+    weights.responsibilities +
+    weights.language;
+
   return (
     <DashboardShell
       role="RECRUITER"
       title="AI Candidate–Job Matching Engine"
-      subtitle="Transparent 0–100 compatibility scoring with configurable weights and human recruiter override"
+      subtitle="Transparent 0–100 semantic & skill compatibility scoring with configurable weights and human recruiter override"
     >
-      {/* Responsible AI Banner */}
-      <div className="p-4 rounded-2xl bg-[#101B35] text-slate-200 flex items-start gap-3 text-xs">
-        <ShieldAlert className="w-5 h-5 text-[#28C5D8] shrink-0 mt-0.5" />
+      {/* Responsible AI Governance Banner */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0A1124] via-[#101B35] to-[#16274C] border border-[#367BF5]/25 text-slate-200 flex items-start gap-3.5 text-xs shadow-sm">
+        <div className="w-9 h-9 rounded-xl bg-[#28C5D8]/15 border border-[#28C5D8]/30 flex items-center justify-center shrink-0">
+          <ShieldAlert className="w-4 h-4 text-[#28C5D8]" />
+        </div>
         <p className="leading-relaxed">
           <strong className="text-white">Decision-Support Governance:</strong> Scores are
           explainable mathematical estimates derived strictly from job-relevant skills,
           experience, education, projects, and languages. Protected characteristics are
-          never used, candidates are never auto-rejected, and recruiters may override any
-          score.
+          mathematically excluded, candidates are never auto-rejected, and recruiters may
+          override any score.
         </p>
       </div>
 
       {/* Job + Configurable Weights Controls */}
-      <Card className="p-6 space-y-5">
+      <Card className="relative overflow-hidden p-6 space-y-5">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#367BF5] to-[#28C5D8]" />
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
           <div className="md:col-span-6">
             <Select
@@ -162,17 +174,22 @@ export default function RecruiterAIMatchingPage() {
         </div>
 
         {/* Configurable Weights */}
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
-            <Sliders className="w-3.5 h-3.5 text-[#367BF5]" />
-            Configurable Scoring Model Weights (Normalized to 100%)
+        <div className="pt-4 border-t border-slate-100 dark:border-white/[0.08] space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+              <Sliders className="w-3.5 h-3.5 text-[#367BF5]" />
+              Configurable Dimension Weights (Auto-Normalized to 100%)
+            </div>
+            <Badge variant={weightSum === 100 ? 'cyan' : 'electric'}>
+              Raw Sum: {weightSum}%
+            </Badge>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
               { key: 'skills', label: 'Skills %' },
               { key: 'experience', label: 'Experience %' },
               { key: 'education', label: 'Education/Certs %' },
-              { key: 'responsibilities', label: 'Projects/Resp %' },
+              { key: 'responsibilities', label: 'Projects/Semantic %' },
               { key: 'language', label: 'Languages %' },
             ].map((w) => (
               <Input
@@ -202,30 +219,37 @@ export default function RecruiterAIMatchingPage() {
         <div className="space-y-4">
           {results.map((r) => {
             const effectiveScore = r.recruiterOverrideScore ?? r.overallScore;
+            const fn = r.candidateProfile?.user?.firstName || 'C';
+            const ln = r.candidateProfile?.user?.lastName || '';
             return (
-              <Card key={r.id} className="p-6 space-y-4">
+              <Card key={r.id} className="p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <h3 className="text-lg font-bold text-[#101B35] dark:text-white">
-                        {r.candidateProfile?.user?.firstName}{' '}
-                        {r.candidateProfile?.user?.lastName}
-                      </h3>
-                      <AIModeBadge mode={r.aiMode} />
-                      {r.reviewedByRecruiter && (
-                        <Badge variant="success">
-                          <CheckCircle2 className="w-3 h-3" /> Recruiter Reviewed
-                        </Badge>
-                      )}
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#101B35] to-[#367BF5] text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                      {fn[0]}
+                      {ln[0] || ''}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {r.candidateProfile?.headline} • {r.relevantExperience}
-                    </p>
+                    <div>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h3 className="text-lg font-extrabold text-[#101B35] dark:text-white">
+                          {fn} {ln}
+                        </h3>
+                        <AIModeBadge mode={r.aiMode} />
+                        {r.reviewedByRecruiter && (
+                          <Badge variant="success">
+                            <CheckCircle2 className="w-3 h-3" /> Recruiter Reviewed
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {r.candidateProfile?.headline} • {r.relevantExperience}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-[10px] uppercase text-slate-400 font-bold">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
                         {r.recruiterOverrideScore !== null
                           ? `Override (AI: ${r.overallScore})`
                           : 'Compatibility'}
@@ -250,31 +274,44 @@ export default function RecruiterAIMatchingPage() {
                   </div>
                 </div>
 
-                {/* Transparent Sub-Score Breakdown */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                {/* Transparent 5-Dimension Sub-Score Breakdown with Progress Bars */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                   {[
                     { label: 'Skills', val: r.skillScore },
                     { label: 'Experience', val: r.experienceScore },
                     { label: 'Education', val: r.educationScore },
-                    { label: 'Projects/Semantic', val: r.responsibilityScore },
+                    { label: 'Semantic Fit', val: r.responsibilityScore },
                     { label: 'Languages', val: r.languageScore },
-                  ].map((sub) => (
-                    <div
-                      key={sub.label}
-                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800"
-                    >
-                      <span className="text-slate-500">{sub.label}</span>
-                      <p className="font-mono font-bold text-sm text-[#101B35] dark:text-white">
-                        {Math.round(sub.val)}/100
-                      </p>
-                    </div>
-                  ))}
+                  ].map((sub) => {
+                    const pct = Math.max(0, Math.min(100, Math.round(sub.val || 0)));
+                    return (
+                      <div
+                        key={sub.label}
+                        className="p-3 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            {sub.label}
+                          </span>
+                          <span className="font-mono font-extrabold tabular-nums text-[#101B35] dark:text-white">
+                            {pct}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-200/80 dark:bg-white/10 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#367BF5] to-[#28C5D8]"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="space-y-1.5">
-                    <p className="font-bold text-emerald-700 dark:text-emerald-400">
-                      Matching Skills:
+                  <div className="space-y-2">
+                    <p className="font-extrabold uppercase tracking-wider text-[11px] text-emerald-700 dark:text-emerald-400">
+                      Matching Skills
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {r.matchingSkills?.length > 0 ? (
@@ -286,11 +323,18 @@ export default function RecruiterAIMatchingPage() {
                       ) : (
                         <span className="text-slate-400">None directly listed</span>
                       )}
+                      {Array.isArray(r.adjacentSkills) &&
+                        r.adjacentSkills.map((adj: any) => (
+                          <Badge key={adj.requiredSkill} variant="cyan">
+                            <GitBranch className="w-3 h-3" /> {adj.candidateSkill} →{' '}
+                            {adj.requiredSkill}
+                          </Badge>
+                        ))}
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <p className="font-bold text-amber-700 dark:text-amber-400">
-                      Missing Required Skills:
+                  <div className="space-y-2">
+                    <p className="font-extrabold uppercase tracking-wider text-[11px] text-amber-700 dark:text-amber-400">
+                      Missing Required Skills
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {r.missingSkills?.length > 0 ? (
@@ -300,7 +344,7 @@ export default function RecruiterAIMatchingPage() {
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-emerald-600 font-semibold">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                           All required skills matched!
                         </span>
                       )}
@@ -308,18 +352,23 @@ export default function RecruiterAIMatchingPage() {
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-xs space-y-1.5">
+                <div className="p-4 rounded-xl bg-slate-50/90 dark:bg-[#091022]/80 border border-slate-200/70 dark:border-white/[0.07] text-xs space-y-2">
                   <p className="text-slate-700 dark:text-slate-200 leading-relaxed">
-                    <strong>Explanation:</strong> {r.explanation}
+                    <strong className="text-[#101B35] dark:text-white">
+                      Explainable Rationale:
+                    </strong>{' '}
+                    {r.explanation}
                   </p>
                   {r.verificationAreas?.length > 0 && (
-                    <p className="text-slate-500">
-                      <strong>Human Verification Areas:</strong>{' '}
+                    <p className="text-slate-500 dark:text-slate-400">
+                      <strong className="text-slate-700 dark:text-slate-300">
+                        Interview Probe Areas:
+                      </strong>{' '}
                       {r.verificationAreas.join(' ')}
                     </p>
                   )}
                   {r.recruiterOverrideNote && (
-                    <p className="text-[#367BF5] font-semibold">
+                    <p className="text-[#367BF5] dark:text-[#28C5D8] font-semibold pt-1 border-t border-slate-200/60 dark:border-white/[0.06]">
                       Recruiter Override Note: {r.recruiterOverrideNote}
                     </p>
                   )}

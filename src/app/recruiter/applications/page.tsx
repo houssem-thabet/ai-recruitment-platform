@@ -30,13 +30,13 @@ import { useToast } from '@/components/providers/ToastProvider';
 import { formatDate } from '@/lib/utils';
 
 const KANBAN_COLUMNS = [
-  { key: 'SUBMITTED', label: 'Submitted' },
-  { key: 'UNDER_REVIEW', label: 'Under Review' },
-  { key: 'SHORTLISTED', label: 'Shortlisted' },
-  { key: 'INTERVIEW_SCHEDULED', label: 'Interview' },
-  { key: 'OFFERED', label: 'Offered' },
-  { key: 'HIRED', label: 'Hired' },
-  { key: 'REJECTED', label: 'Rejected' },
+  { key: 'SUBMITTED', label: 'Submitted', dot: 'bg-slate-400' },
+  { key: 'UNDER_REVIEW', label: 'Under Review', dot: 'bg-[#367BF5]' },
+  { key: 'SHORTLISTED', label: 'Shortlisted', dot: 'bg-[#28C5D8]' },
+  { key: 'INTERVIEW_SCHEDULED', label: 'Interview', dot: 'bg-indigo-500' },
+  { key: 'OFFERED', label: 'Offered', dot: 'bg-emerald-500' },
+  { key: 'HIRED', label: 'Hired', dot: 'bg-emerald-600' },
+  { key: 'REJECTED', label: 'Rejected', dot: 'bg-rose-500' },
 ];
 
 function RecruiterApplicationsContent() {
@@ -266,10 +266,11 @@ function RecruiterApplicationsContent() {
             return (
               <div
                 key={col.key}
-                className="w-72 shrink-0 rounded-2xl bg-slate-100/80 dark:bg-[#101B35]/60 border border-slate-200 dark:border-slate-800 p-3.5 space-y-3"
+                className="w-72 shrink-0 rounded-2xl bg-slate-100/80 dark:bg-[#0B1325]/90 border border-slate-200/80 dark:border-white/[0.08] p-3.5 space-y-3"
               >
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                <div className="flex items-center justify-between px-1.5 py-0.5">
+                  <h3 className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                    <span className={`w-2 h-2 rounded-full ${col.dot}`} />
                     {col.label}
                   </h3>
                   <Badge variant="default">{colApps.length}</Badge>
@@ -284,7 +285,8 @@ function RecruiterApplicationsContent() {
                     return (
                       <Card
                         key={app.id}
-                        className="p-3.5 space-y-2.5 cursor-pointer hover:border-[#367BF5] transition-colors"
+                        interactive
+                        className="p-4 space-y-2.5 cursor-pointer"
                         onClick={() => openApplicantModal(app)}
                       >
                         <div className="flex items-start justify-between gap-2">

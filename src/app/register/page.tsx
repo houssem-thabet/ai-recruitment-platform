@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { UserCircle, Building2, ShieldCheck } from 'lucide-react';
+import { Compass, Building2, ShieldCheck, BrainCircuit } from 'lucide-react';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { PublicFooter } from '@/components/layout/PublicFooter';
 import { Button, Card, Input, Select, Textarea } from '@/components/ui/primitives';
@@ -66,33 +66,48 @@ function RegisterContent() {
   };
 
   return (
-    <div className="max-w-2xl w-full mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-extrabold text-[#101B35] dark:text-white">
-          Create Your TalentAI Account
+    <div className="max-w-2xl w-full mx-auto space-y-6 relative z-10 animate-fade-in-up">
+      <div className="text-center space-y-2.5">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#101B35] via-[#367BF5] to-[#28C5D8] text-white flex items-center justify-center mx-auto shadow-glow">
+          <BrainCircuit className="w-6 h-6" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#101B35] dark:text-white">
+          Create Your TalentAI Workspace
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Choose your account type to personalize your intelligent workspace
+          Select your role to tailor your AI career or talent acquisition experience
         </p>
       </div>
 
-      <Card className="p-6 sm:p-8 space-y-6">
-        {/* Account Type Selector */}
-        <div className="grid grid-cols-2 gap-3">
+      <Card className="relative overflow-hidden p-6 sm:p-8 space-y-6 shadow-elevated">
+        <div
+          className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${
+            accountType === 'CANDIDATE'
+              ? 'from-[#28C5D8] to-[#367BF5]'
+              : 'from-[#101B35] via-[#367BF5] to-[#28C5D8]'
+          }`}
+        />
+
+        {/* Role-Distinct Account Type Selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <button
             type="button"
             onClick={() => setAccountType('CANDIDATE')}
-            className={`flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${
+            className={`flex items-center gap-3.5 p-4 rounded-2xl border text-left transition-all ${
               accountType === 'CANDIDATE'
-                ? 'border-[#367BF5] bg-[#367BF5]/10 ring-2 ring-[#367BF5]/20'
-                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                ? 'border-[#28C5D8] bg-gradient-to-br from-[#28C5D8]/12 to-[#367BF5]/10 ring-2 ring-[#28C5D8]/25 shadow-sm'
+                : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]'
             }`}
           >
-            <UserCircle className="w-6 h-6 text-[#367BF5] shrink-0" />
+            <div className="w-10 h-10 rounded-xl bg-[#28C5D8]/15 text-[#128392] dark:text-[#28C5D8] flex items-center justify-center shrink-0">
+              <Compass className="w-5 h-5" />
+            </div>
             <div>
-              <p className="text-sm font-bold text-[#101B35] dark:text-white">Candidate</p>
+              <p className="text-sm font-extrabold text-[#101B35] dark:text-white">
+                Candidate Studio
+              </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Find jobs &amp; analyze CV
+                CV AI audit, skill roadmap &amp; jobs
               </p>
             </div>
           </button>
@@ -100,17 +115,21 @@ function RegisterContent() {
           <button
             type="button"
             onClick={() => setAccountType('RECRUITER')}
-            className={`flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${
+            className={`flex items-center gap-3.5 p-4 rounded-2xl border text-left transition-all ${
               accountType === 'RECRUITER'
-                ? 'border-[#367BF5] bg-[#367BF5]/10 ring-2 ring-[#367BF5]/20'
-                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                ? 'border-[#367BF5] bg-gradient-to-br from-[#367BF5]/12 to-[#101B35]/5 ring-2 ring-[#367BF5]/25 shadow-sm'
+                : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]'
             }`}
           >
-            <Building2 className="w-6 h-6 text-[#28C5D8] shrink-0" />
+            <div className="w-10 h-10 rounded-xl bg-[#367BF5]/15 text-[#367BF5] flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
             <div>
-              <p className="text-sm font-bold text-[#101B35] dark:text-white">Recruiter</p>
+              <p className="text-sm font-extrabold text-[#101B35] dark:text-white">
+                Recruiter Command
+              </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Publish jobs &amp; match talent
+                Publish roles, match &amp; hire talent
               </p>
             </div>
           </button>
@@ -171,9 +190,9 @@ function RegisterContent() {
           </div>
 
           {accountType === 'RECRUITER' && (
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-              <h3 className="text-sm font-bold text-[#101B35] dark:text-white">
-                Company Information
+            <div className="pt-4 border-t border-slate-100 dark:border-white/[0.08] space-y-4 animate-fade-in-up">
+              <h3 className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#367BF5] dark:text-[#28C5D8]">
+                Organization Profile
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
@@ -222,30 +241,39 @@ function RegisterContent() {
             </div>
           )}
 
-          <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl">
-            <ShieldCheck className="w-4 h-4 text-[#367BF5] shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.06] p-3.5 rounded-xl">
+            <ShieldCheck className="w-4 h-4 text-[#367BF5] dark:text-[#28C5D8] shrink-0 mt-0.5" />
             <span>
               By registering, you acknowledge our{' '}
-              <Link href="/privacy" className="text-[#367BF5] underline">
+              <Link href="/privacy" className="font-semibold text-[#367BF5] underline">
                 Privacy &amp; CV Processing Notice
               </Link>{' '}
               and{' '}
-              <Link href="/terms" className="text-[#367BF5] underline">
+              <Link href="/terms" className="font-semibold text-[#367BF5] underline">
                 Terms of Service
               </Link>
               .
             </span>
           </div>
 
-          <Button type="submit" loading={loading} size="lg" className="w-full">
-            Create {accountType === 'CANDIDATE' ? 'Candidate' : 'Recruiter'} Account
+          <Button
+            type="submit"
+            variant={accountType === 'CANDIDATE' ? 'accent' : 'primary'}
+            loading={loading}
+            size="lg"
+            className="w-full"
+          >
+            Create {accountType === 'CANDIDATE' ? 'Candidate' : 'Recruiter'} Workspace
           </Button>
         </form>
       </Card>
 
       <p className="text-center text-sm text-slate-600 dark:text-slate-400">
         Already registered?{' '}
-        <Link href="/login" className="font-bold text-[#367BF5] hover:underline">
+        <Link
+          href="/login"
+          className="font-bold text-[#367BF5] dark:text-[#28C5D8] hover:underline"
+        >
           Sign In
         </Link>
       </p>
@@ -255,9 +283,10 @@ function RegisterContent() {
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F7FB] dark:bg-[#090E1D]">
+    <div className="min-h-screen flex flex-col bg-[#F4F7FC] dark:bg-[#070C18]">
       <PublicNavbar />
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
+      <main className="relative flex-1 flex items-center justify-center px-4 py-14 overflow-hidden">
+        <div className="absolute inset-0 bg-dot-subtle opacity-60 pointer-events-none" />
         <Suspense fallback={<div className="text-sm text-slate-500">Loading...</div>}>
           <RegisterContent />
         </Suspense>

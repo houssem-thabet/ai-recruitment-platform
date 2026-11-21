@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, Send, Trash2, Sparkles } from 'lucide-react';
+import { Bot, Send, Trash2, Sparkles, User } from 'lucide-react';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import {
   Button,
@@ -39,7 +39,7 @@ export default function CandidateCareerAssistantPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, sending]);
 
   const sendMessage = async (textToSend?: string) => {
     const content = (textToSend ?? input).trim();
@@ -83,7 +83,7 @@ export default function CandidateCareerAssistantPage() {
     <DashboardShell
       role="CANDIDATE"
       title="AI Career Assistant"
-      subtitle="Personalized coaching grounded strictly on your authorized profile, CV audit, and live jobs"
+      subtitle="Multi-turn career coaching grounded strictly on your verified profile, CV audit, and live platform roles"
       actions={
         <>
           <AIModeBadge mode={aiMode} />
@@ -95,21 +95,24 @@ export default function CandidateCareerAssistantPage() {
         </>
       }
     >
-      <Card className="flex flex-col h-[620px] overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/40 dark:bg-[#0B1326]/40">
+      <Card className="relative flex flex-col h-[650px] overflow-hidden shadow-elevated">
+        <div className="h-1 w-full bg-gradient-to-r from-[#28C5D8] via-[#367BF5] to-[#28C5D8]" />
+
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-5 bg-dot-subtle bg-slate-50/50 dark:bg-[#080F20]/60">
           {loading ? (
             <PageLoader label="Loading conversation history..." />
           ) : messages.length === 0 ? (
-            <div className="max-w-xl mx-auto text-center py-12 space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#367BF5] to-[#28C5D8] text-white flex items-center justify-center mx-auto shadow-md">
-                <Bot className="w-7 h-7" />
+            <div className="max-w-xl mx-auto text-center py-14 space-y-4 animate-fade-in-up">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#28C5D8] via-[#367BF5] to-[#101B35] text-white flex items-center justify-center mx-auto shadow-glow">
+                <Bot className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-[#101B35] dark:text-white">
-                Hello! Ask Me Anything About Your Career Journey
+              <h3 className="text-xl font-extrabold text-[#101B35] dark:text-white">
+                Ask Anything About Your Career Trajectory
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                I use your TalentAI skills, CV analysis, and open platform roles to give
-                concrete, truthful guidance without inventing credentials.
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                I synthesize your verified TalentAI skills, CV analysis, and live open roles
+                to provide concrete CV feedback, cover letters, salary strategies, and
+                interview prep—without inventing credentials.
               </p>
             </div>
           ) : (
@@ -118,38 +121,63 @@ export default function CandidateCareerAssistantPage() {
               return (
                 <div
                   key={m.id}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-end gap-2.5 animate-fade-in-up ${
+                    isUser ? 'justify-end' : 'justify-start'
+                  }`}
                 >
+                  {!isUser && (
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#28C5D8] to-[#367BF5] text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                  )}
                   <div
-                    className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[82%] rounded-2xl px-4.5 p-4 text-sm leading-relaxed whitespace-pre-wrap ${
                       isUser
-                        ? 'bg-[#367BF5] text-white rounded-br-sm'
-                        : 'bg-white dark:bg-[#101B35] border border-slate-200 dark:border-slate-700 text-[#101B35] dark:text-slate-100 rounded-bl-sm shadow-sm'
+                        ? 'bg-gradient-to-br from-[#367BF5] to-[#2260DC] text-white rounded-br-xs shadow-md shadow-[#367BF5]/20'
+                        : 'bg-white dark:bg-[#0E172C] border border-slate-200/90 dark:border-white/10 text-[#101B35] dark:text-slate-100 rounded-bl-xs shadow-soft'
                     }`}
                   >
                     {!isUser && (
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#367BF5] dark:text-[#28C5D8] mb-1">
-                        <Sparkles className="w-3.5 h-3.5" /> TalentAI Career Assistant
+                      <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#367BF5] dark:text-[#28C5D8] mb-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> TalentAI Career Coach
                       </div>
                     )}
                     {m.content}
                   </div>
+                  {isUser && (
+                    <div className="w-8 h-8 rounded-xl bg-[#101B35] text-[#28C5D8] flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
               );
             })
           )}
+
+          {sending && (
+            <div className="flex items-center gap-2.5 animate-fade-in-up">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#28C5D8] to-[#367BF5] text-white flex items-center justify-center shrink-0">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="px-4 py-3 rounded-2xl bg-white dark:bg-[#0E172C] border border-slate-200/90 dark:border-white/10 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#367BF5] animate-bounce" />
+                <span className="w-2 h-2 rounded-full bg-[#28C5D8] animate-bounce [animation-delay:120ms]" />
+                <span className="w-2 h-2 rounded-full bg-[#367BF5] animate-bounce [animation-delay:240ms]" />
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
 
-        {/* Prompt Chips */}
-        <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 overflow-x-auto">
+        {/* Suggested Prompt Chips */}
+        <div className="px-4 py-3 border-t border-slate-100 dark:border-white/[0.07] bg-white/80 dark:bg-[#0E172C]/90 flex items-center gap-2 overflow-x-auto">
           {suggestedActions.map((prompt) => (
             <button
               key={prompt}
               type="button"
               onClick={() => sendMessage(prompt)}
               disabled={sending}
-              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-[#367BF5]/10 text-[#367BF5] dark:text-[#28C5D8] hover:bg-[#367BF5]/20 transition-colors"
+              className="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-[#367BF5]/10 to-[#28C5D8]/12 border border-[#367BF5]/20 text-[#2463EB] dark:text-[#28C5D8] hover:border-[#28C5D8]/60 hover:bg-[#367BF5]/15 transition-all"
             >
               {prompt}
             </button>
@@ -162,11 +190,11 @@ export default function CandidateCareerAssistantPage() {
             e.preventDefault();
             sendMessage();
           }}
-          className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2.5"
+          className="p-4 bg-white dark:bg-[#0E172C] border-t border-slate-200/80 dark:border-white/10 flex items-center gap-2.5"
         >
           <div className="flex-1">
             <Input
-              placeholder="Ask about CV improvements, interview prep, missing skills, or matching jobs..."
+              placeholder="Ask about CV bullets, cover letters, salary negotiation, interview prep, or missing skills..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={sending}
