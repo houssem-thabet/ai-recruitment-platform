@@ -4,24 +4,77 @@
 
 @layer base {
   :root {
-    --bg-primary: #f4f7fb;
+    --bg-primary: #f4f7fc;
     --bg-surface: #ffffff;
     --text-primary: #101b35;
+    --brand-navy: #101b35;
+    --brand-electric: #367bf5;
+    --brand-cyan: #28c5d8;
   }
 
   .dark {
-    --bg-primary: #090e1d;
-    --bg-surface: #101b35;
+    --bg-primary: #070c18;
+    --bg-surface: #0e172c;
     --text-primary: #f1f5f9;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-[#F4F7FB] text-[#101B35] dark:bg-[#090E1D] dark:text-slate-100 antialiased selection:bg-[#367BF5]/20 selection:text-[#367BF5];
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    @apply bg-[#F4F7FC] text-[#101B35] dark:bg-[#070C18] dark:text-slate-100 antialiased selection:bg-[#367BF5]/20 selection:text-[#367BF5] dark:selection:bg-[#28C5D8]/25 dark:selection:text-[#28C5D8];
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Global table polish across Candidate, Recruiter & Admin workspaces */
+  table {
+    @apply border-collapse;
+  }
+
+  thead th {
+    @apply text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 select-none;
+  }
+
+  tbody tr {
+    @apply transition-colors duration-150 hover:bg-[#367BF5]/[0.035] dark:hover:bg-white/[0.03];
   }
 }
 
-/* Subtle custom scrollbars */
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bg-grid-navy {
+    background-image: linear-gradient(
+        to right,
+        rgba(54, 123, 245, 0.08) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(40, 197, 216, 0.08) 1px,
+        transparent 1px
+      );
+    background-size: 36px 36px;
+  }
+
+  .bg-dot-subtle {
+    background-image: radial-gradient(
+      rgba(54, 123, 245, 0.14) 1px,
+      transparent 1px
+    );
+    background-size: 20px 20px;
+  }
+
+  .glass-panel {
+    @apply bg-white/85 dark:bg-[#0E172C]/85 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.08];
+  }
+}
+
+/* Refined custom scrollbars */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
@@ -30,9 +83,18 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.3);
+  background: rgba(100, 116, 139, 0.28);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(54, 123, 245, 0.55);
+  background: rgba(54, 123, 245, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
